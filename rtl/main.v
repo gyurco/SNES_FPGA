@@ -75,6 +75,8 @@ module main (
 	output            JOY2_P6,
 	input             JOY2_P6_in,
 
+	output            DOT_CLK_CE,
+
 	input      [64:0] EXT_RTC,
 
 	input             GG_EN,
@@ -163,6 +165,7 @@ SNES SNES
 
 	.sysclkf_ce(SYSCLKF_CE),
 	.sysclkr_ce(SYSCLKR_CE),
+	.dot_clk_ce(DOT_CLK_CE),
 
 	.refresh(REFRESH),
 
