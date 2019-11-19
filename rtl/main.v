@@ -3,6 +3,7 @@ module main (
 
 	input             MCLK,
 	input             ACLK,
+	input             HALT,
 
 	input       [7:0] ROM_TYPE,
 	input      [23:0] ROM_MASK,
@@ -148,7 +149,7 @@ SNES SNES
 	.dspclk(ACLK),
 
 	.rst_n(RESET_N),
-	.enable(1),
+	.enable(~HALT),
 
 	.ca(CA),
 	.cpurd_n(CPURD_N),
