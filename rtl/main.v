@@ -23,6 +23,7 @@ module main (
 	output reg        BSRAM_CE_N,
 	output reg        BSRAM_OE_N,
 	output reg        BSRAM_WE_N,
+	output            BSRAM_RD_N,
 
 	output     [16:0] WRAM_ADDR,
 	output      [7:0] WRAM_D,
@@ -129,6 +130,7 @@ parameter USE_MSU = 1'b1;
 wire [23:0] CA;
 wire        CPURD_N;
 wire        CPUWR_N;
+wire        CPURD_CYC_N;
 reg   [7:0] DI;
 wire  [7:0] DO;
 wire        RAMSEL_N;
@@ -154,6 +156,7 @@ SNES SNES
 	.ca(CA),
 	.cpurd_n(CPURD_N),
 	.cpuwr_n(CPUWR_N),
+	.cpurd_cyc_n(CPURD_CYC_N),
 
 	.pa(PA),
 	.pard_n(PARD_N),
@@ -239,6 +242,7 @@ SNES SNES
 	.audio_r(AUDIO_R)
 );
 
+<<<<<<< HEAD
 wire  [7:0] MSU_DO;
 wire        MSU_SEL;
 
@@ -286,6 +290,9 @@ end else begin
 	assign MSU_AUDIO_PLAYING = 0;
 end
 endgenerate
+=======
+assign      BSRAM_RD_N = CPURD_CYC_N;
+>>>>>>> 75694c2 (Full cycle BSRAM_RD_N signal)
 
 wire  [7:0] DLH_DO;
 wire        DLH_IRQ_N;
