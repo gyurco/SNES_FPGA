@@ -36,7 +36,6 @@ module main (
 	output            WRAM_CE_N,
 	output            WRAM_OE_N,
 	output            WRAM_WE_N,
-	output            WRAM_WE_N,
 	output            WRAM_RD_N,
 
 	output     [15:0] VRAM1_ADDR,
@@ -329,6 +328,7 @@ end else begin
 	assign MSU_AUDIO_PLAYING = 0;
 end
 endgenerate
+
 assign      BSRAM_RD_N = CPURD_CYC_N;
 
 wire  [7:0] DLH_DO;
