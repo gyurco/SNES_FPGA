@@ -31,7 +31,6 @@ module main (
 	output            WRAM_CE_N,
 	output            WRAM_OE_N,
 	output            WRAM_WE_N,
-	output            WRAM_WE_N,
 	output            WRAM_RD_N,
 
 	output     [15:0] VRAM1_ADDR,
@@ -242,7 +241,6 @@ SNES SNES
 	.audio_r(AUDIO_R)
 );
 
-<<<<<<< HEAD
 wire  [7:0] MSU_DO;
 wire        MSU_SEL;
 
@@ -290,9 +288,8 @@ end else begin
 	assign MSU_AUDIO_PLAYING = 0;
 end
 endgenerate
-=======
+
 assign      BSRAM_RD_N = CPURD_CYC_N;
->>>>>>> 75694c2 (Full cycle BSRAM_RD_N signal)
 
 wire  [7:0] DLH_DO;
 wire        DLH_IRQ_N;
