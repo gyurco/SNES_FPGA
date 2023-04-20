@@ -135,6 +135,8 @@ always @(posedge clk_sys) begin
 	spi_transfer_endD <= spi_transfer_end_r;
 	spi_transfer_end <= spi_transfer_endD;
 
+	ioctl_wr <= 0;
+
 	if (spi_transfer_end) begin
 		abyte_cnt <= 0;
 	end else if (spi_receiver_strobeD ^ spi_receiver_strobe) begin
@@ -162,7 +164,7 @@ always @(posedge clk_sys) begin
 					if (hi) ioctl_dout[15:8] <= spi_byte_in; else ioctl_dout[7:0] <= spi_byte_in;
 					hi <= ~hi;
 					if (hi) begin
-						ioctl_wr <= ~ioctl_wr;
+						ioctl_wr <= 1;
 						ioctl_addr <= addr;
 						addr <= addr + 2'd2;
 					end

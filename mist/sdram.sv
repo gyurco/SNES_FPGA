@@ -77,8 +77,9 @@ module sdram (
 	output reg  [7:0] vram2_dout,
 	input             vram2_we,
 
+	input             aram_16,
 	input      [15:0] aram_addr,
-	input       [7:0] aram_din,
+	input      [15:0] aram_din,
 	output reg [15:0] aram_dout,
 	input             aram_req,
 	output reg        aram_req_ack,
@@ -284,8 +285,8 @@ always @(posedge clk) begin
 		next_addr[1] <= { 9'b101111000, aram_addr };
 		next_we[1] <= aram_we;
 		next_oe[1] <= ~aram_we;
-		next_din[1] <= { aram_din, aram_din };
-		next_ds[1] <= {aram_addr[0], ~aram_addr[0]};
+		next_din[1] <= aram_din;
+		next_ds[1] <= aram_16 ? 2'b11 : {aram_addr[0], ~aram_addr[0]};
 	end
 end
 
@@ -382,7 +383,7 @@ always @(posedge clk) begin
 			SDRAM_BA <= 2'b10;
 			din_latch[1] <= next_din[1];
 			ds[1] <= next_ds[1];
-			if (next_port[1] != PORT_NONE) sd_cmd <= CMD_ACTIVE;
+			if (next_port[1] != PORT_NONE) begin sd_cmd <= CMD_ACTIVE; aram_req_ack <= aram_req; end
 		end
 
 		// bank3 - VRAM
@@ -431,7 +432,7 @@ always @(posedge clk) begin
 				SDRAM_DQ <= din_latch[1];
 				{ SDRAM_DQMH, SDRAM_DQML } <= ~ds[1];
 			end
-			aram_req_ack <= aram_req;
+
 			sd_a <= { 4'b0010, addr_latch[1][9:1] };  // auto precharge
 			SDRAM_BA <= 2'b10;
 		end
