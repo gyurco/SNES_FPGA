@@ -60,6 +60,7 @@ assign LED  = ~ioctl_download & ~bk_ena;
 parameter CONF_STR = {
 	"SNES;;",
 	"F,SFCSMCBIN,Load;",
+	"F,SPC,Load;",
 	"S,SAV,Mount;",
 	"TF,Write Save RAM;",
 	"OE,Video Region,NTSC,PAL;",
@@ -119,7 +120,6 @@ wire        ypbpr;
 wire        scandoubler_disable;
 wire        no_csync;
 
-reg         ioctl_wrD;
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire [15:0] ioctl_dout;
@@ -214,8 +214,6 @@ data_io data_io
 	.ioctl_filesize(ioctl_filesize)
 );
 
-always @(posedge clk_sys) ioctl_wrD <= ioctl_wr;
-
 ////////////////////////////  SDRAM  ///////////////////////////////////
 wire [23:0] ROM_ADDR;
 wire [24:0] ioctl_addr_adj = ioctl_addr - ioctl_filesize[9:0]; // adjust for 512 byte SMC header
@@ -291,7 +289,7 @@ wire        ARAM_OE_N;
 wire        ARAM_WE_N;
 wire  [7:0] ARAM_Q = ARAM_ADDR[0] ? aram_dout[15:8] : aram_dout[7:0];
 wire  [7:0] ARAM_D;
-reg   [7:0] aram_din;
+reg  [15:0] aram_din;
 wire [15:0] aram_dout;
 wire        aram_rd = ~ARAM_CE_N & ~ARAM_OE_N;
 reg         aram_rd_last;
@@ -304,14 +302,10 @@ wire        DOT_CLK_CE;
 
 always @(negedge clk_sys) begin
 
-	reg ioctl_wr_last;
-
-	ioctl_wr_last <= ioctl_wr;
-
 	wram_rdD <= wram_rd;
 	wram_wrD <= wram_wr;
-
-	if ((~cart_download && ~ROM_CE_N /*&& ~ROM_OE_N */&& rom_addr_sd != rom_addr_rw) || ((ioctl_wr_last ^ ioctl_wr) & cart_download)) begin
+	if (spc_download) begin
+	end else if ((~cart_download && ~ROM_CE_N /*&& ~ROM_OE_N */&& rom_addr_sd != rom_addr_rw) || (ioctl_wr & cart_download)) begin
 		rom_addr_sd <= rom_addr_rw;
 		cpu_req <= ~cpu_req;
 		cpu_addr_sd <= rom_addr_rw;
@@ -329,10 +323,19 @@ always @(negedge clk_sys) begin
 		cpu_port <= 1;
 	end
 
+	aram_wr_last <= aram_wr;
+	aram_rd_last <= aram_rd;
+	if (spc_download) begin
+		if (ioctl_wr & ioctl_addr < 24'h10100) aram_req <= ~aram_req;
+		aram_addr_sd <= ioctl_addr - 9'd256;
+		aram_din <= ioctl_dout;
+	end else if ((aram_rd && ARAM_ADDR[15:1] != aram_addr_sd[15:1]) || (aram_wr && ARAM_ADDR != aram_addr_sd) || (aram_rd & ~aram_rd_last) || (aram_wr & ~aram_wr_last)) begin
+		aram_req <= ~aram_req;
+		aram_addr_sd <= ARAM_ADDR;
+		aram_din <= {ARAM_D, ARAM_D};
+	end
 
 	if (reset) begin
-//		aram_addr_sd <= 16'haaaa;
-//		wram_addr_sd <= 17'h1aaaa;
 //		vram1_addr_sd <= 15'h7fff;
 //		vram2_addr_sd <= 15'h7fff;
 	end else begin
@@ -343,14 +346,6 @@ always @(negedge clk_sys) begin
 			bsram_req <= ~bsram_req;
 			bsram_sd_addr <= BSRAM_ADDR;
 			bsram_din <= BSRAM_D;
-		end
-
-		aram_wr_last <= aram_wr;
-		aram_rd_last <= aram_rd;
-		if ((aram_rd && ARAM_ADDR[15:1] != aram_addr_sd[15:1]) || (aram_wr && ARAM_ADDR != aram_addr_sd) || (aram_rd & ~aram_rd_last) || (aram_wr & ~aram_wr_last)) begin
-			aram_req <= ~aram_req;
-			aram_addr_sd <= ARAM_ADDR;
-			aram_din <= ARAM_D;
 		end
 
 		vram1_we_nD <= VRAM1_WE_N;
@@ -421,6 +416,7 @@ sdram sdram
 //	.vram2_we(~VRAM2_WE_N),
 	.vram2_we(~vram2_we_nD),
 
+	.aram_16(spc_download),
 	.aram_addr(aram_addr_sd),
 	.aram_din(aram_din),
 //	.aram_din(ARAM_D),
@@ -428,14 +424,21 @@ sdram sdram
 	.aram_req(aram_req),
 	.aram_req_ack(),
 //	.aram_we(~ARAM_WE_N)
-	.aram_we(aram_wr_last)
+	.aram_we(spc_download | aram_wr_last)
 );
 
 assign SDRAM_CKE = 1'b1;
 
 //////////////////////////  ROM DETECT  /////////////////////////////////
 
-wire cart_download = ioctl_download;
+wire cart_download = ioctl_download && ioctl_index[5:1] == 0; //0-1
+wire spc_download = ioctl_download && ioctl_index[5:0] == 6'd2;
+
+reg spc_mode = 0;
+always @(posedge clk_sys) begin
+	if(buttons[1] | status[0]) spc_mode <= 0;
+	if(ioctl_wr) spc_mode <= spc_download;
+end
 
 reg        PAL;
 reg  [7:0] rom_type;
@@ -453,7 +456,7 @@ always @(posedge clk_sys) begin
 	reg [3:0] ram_size;
 
 	if (cart_download) begin
-		if(ioctl_wrD ^ ioctl_wr) begin
+		if(ioctl_wr) begin
 			if (ioctl_addr == 0) begin
 				ram_size <= 4'h0;
 				rom_type <= { 6'd0, LHRom_type };
@@ -503,6 +506,10 @@ always @(posedge clk_sys) begin
 end
 
 ////////////////////////////  SYSTEM  ///////////////////////////////////
+
+wire [16:0] io_addr = ioctl_addr >= 17'h00100 && ioctl_addr < 17'h10100 ? ioctl_addr + 9'h100 :
+                      ioctl_addr >= 17'h10100 ? {1'b1, ioctl_addr[7:0]} :
+                      ioctl_addr[16:0];
 
 main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(1'b0), .USE_SA1(1'b0), .USE_GSU(1'b0), .USE_DLH(1'b1), .USE_SPC7110(1'b0), .USE_BSX(1'b0)) main
 (
@@ -585,6 +592,11 @@ main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(1'b0), .USE_SA1(1'b0), .USE_GS
 	.JOY1_P6(JOY1_P6),
 	.JOY2_P6(JOY2_P6),
 	.JOY2_P6_in(JOY2_P6_DI),
+
+	.SPC_MODE(spc_mode),
+	.IO_ADDR(io_addr),
+	.IO_DAT(ioctl_dout),
+	.IO_WR(spc_download & ioctl_wr & ioctl_addr < 17'h10200),
 
 	.GG_EN(1'b0),
 	.GG_CODE(),
