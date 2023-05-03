@@ -617,9 +617,8 @@ main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(1'b0), .USE_SA1(1'b0), .USE_GS
 wire [7:0] R,G,B;
 wire       HSYNC,VSYNC;
 wire       HBLANKn,VBLANKn;
-wire       BLANK = ~(HBLANKn & VBLANKn);
 
-mist_video #(.SD_HCNT_WIDTH(10), .COLOR_DEPTH(6)) mist_video
+mist_video #(.SD_HCNT_WIDTH(10), .COLOR_DEPTH(6), .USE_BLANKS(1'b1)) mist_video
 (
 	.clk_sys(clk_sys),
 	.scanlines(scanlines),
@@ -627,15 +626,17 @@ mist_video #(.SD_HCNT_WIDTH(10), .COLOR_DEPTH(6)) mist_video
 	.ypbpr(ypbpr),
 	.no_csync(no_csync),
 	.rotate(2'b00),
-	.ce_divider(1'b0),
+	.ce_divider(3'd1),
 	.SPI_DI(SPI_DI),
 	.SPI_SCK(SPI_SCK),
 	.SPI_SS3(SPI_SS3),
 	.HSync(~HSYNC),
 	.VSync(~VSYNC),
-	.R(BLANK ? 6'd0 : ((LG_TARGET && |GUN_MODE) ? {6{LG_TARGET[0]}} : R[7:2])),
-	.G(BLANK ? 6'd0 : ((LG_TARGET && |GUN_MODE) ? {6{LG_TARGET[1]}} : G[7:2])),
-	.B(BLANK ? 6'd0 : ((LG_TARGET && |GUN_MODE) ? {6{LG_TARGET[2]}} : B[7:2])),
+	.HBlank(~HBLANKn),
+	.VBlank(~VBLANKn),
+	.R((LG_TARGET && |GUN_MODE) ? {6{LG_TARGET[0]}} : R[7:2]),
+	.G((LG_TARGET && |GUN_MODE) ? {6{LG_TARGET[1]}} : G[7:2]),
+	.B((LG_TARGET && |GUN_MODE) ? {6{LG_TARGET[2]}} : B[7:2]),
 	.VGA_HS(VGA_HS),
 	.VGA_VS(VGA_VS),
 	.VGA_R(VGA_R),
