@@ -197,7 +197,7 @@ always @(posedge clk_sys) begin
 	if (mouse_strobe) mouse_strobe_level <= ~mouse_strobe_level;
 end
 
-data_io data_io
+data_io #(.ROM_DIRECT_UPLOAD(1'b1), .DOUT_16(1'b1)) data_io
 (
 	.clk_sys(clk_sys),
 	.SPI_SCK(SPI_SCK),
