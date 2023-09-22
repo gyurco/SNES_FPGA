@@ -1,5 +1,5 @@
 //
-// sdram.v
+// sdram_cl3.sv
 //
 // sdram controller implementation for the MiST board
 // https://github.com/mist-devel/mist-board/wiki
@@ -21,7 +21,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>. 
 //
 
-module sdram (
+module sdram_cl3 (
 
 	// interface to the MT48LC16M16 chip
 	inout  reg [15:0] SDRAM_DQ,   // 16 bit bidirectional data bus
