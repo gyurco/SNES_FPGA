@@ -23,7 +23,7 @@
 
 # Clock constraints
 
-create_clock -name "CLOCK_27" -period 37.037 [get_ports {CLOCK_27[0]}]
+create_clock -name "CLOCK_27" -period 37.037 [get_ports {CLOCK_27}]
 create_clock -name {SPI_SCK}  -period 41.666 -waveform { 20.8 41.666 } [get_ports {SPI_SCK}]
 
 # Automatically constrain PLL and other generated clocks
@@ -58,11 +58,11 @@ set_multicycle_path -from [get_clocks $sdram_clk] -to [get_clocks $mem_clk] -set
 set_multicycle_path -from [get_clocks $mem_clk] -to [get_clocks $sys_clk] -setup -start 3
 set_multicycle_path -from [get_clocks $mem_clk] -to [get_clocks $sys_clk] -hold -start 2
 
-set_multicycle_path -from [get_clocks $sys_clk] -to {sdram:sdram|din_latch[*][*]} -setup -end 2
-set_multicycle_path -from [get_clocks $sys_clk] -to {sdram:sdram|din_latch[*][*]} -hold -end 1
+set_multicycle_path -from [get_clocks $sys_clk] -to {sdram_cl3:sdram|din_latch[*][*]} -setup -end 2
+set_multicycle_path -from [get_clocks $sys_clk] -to {sdram_cl3:sdram|din_latch[*][*]} -hold -end 1
 
-set_multicycle_path -from {sdram:sdram|aram_dout[*]} -to {sdram:sdram|din_latch[1][*]} -setup -end 2
-set_multicycle_path -from {sdram:sdram|aram_dout[*]} -to {sdram:sdram|din_latch[1][*]} -hold -end 1
+set_multicycle_path -from {sdram:sdram|aram_dout[*]} -to {sdram_cl3:sdram|din_latch[1][*]} -setup -end 2
+set_multicycle_path -from {sdram:sdram|aram_dout[*]} -to {sdram_cl3:sdram|din_latch[1][*]} -hold -end 1
 
 set_false_path -to [get_ports {SDRAM_CLK}]
 set_false_path -to [get_ports {AUDIO_L}]

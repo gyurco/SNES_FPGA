@@ -18,41 +18,98 @@
 
 module SNES_MIST_TOP
 (
-   input         CLOCK_27[0],   // Input clock 27 MHz
+	input         CLOCK_27,
+	input         CLOCK_50,
 
-   output  [5:0] VGA_R,
-   output  [5:0] VGA_G,
-   output  [5:0] VGA_B,
-   output        VGA_HS,
-   output        VGA_VS,
+	output        LED,
+	output [VGA_BITS-1:0] VGA_R,
+	output [VGA_BITS-1:0] VGA_G,
+	output [VGA_BITS-1:0] VGA_B,
+	output        VGA_HS,
+	output        VGA_VS,
 
-   output        LED,
+	input         SPI_SCK,
+	inout         SPI_DO,
+	input         SPI_DI,
+	input         SPI_SS2,    // data_io
+	input         SPI_SS3,    // OSD
+	input         CONF_DATA0, // SPI_SS for user_io
 
-   output        AUDIO_L,
-   output        AUDIO_R,
+`ifdef USE_QSPI
+	input         QSCK,
+	input         QCSn,
+	inout   [3:0] QDAT,
+`endif
+`ifndef NO_DIRECT_UPLOAD
+	input         SPI_SS4,
+`endif
 
-   input         UART_RX,
+	output [12:0] SDRAM_A,
+	inout  [15:0] SDRAM_DQ,
+	output        SDRAM_DQML,
+	output        SDRAM_DQMH,
+	output        SDRAM_nWE,
+	output        SDRAM_nCAS,
+	output        SDRAM_nRAS,
+	output        SDRAM_nCS,
+	output  [1:0] SDRAM_BA,
+	output        SDRAM_CLK,
+	output        SDRAM_CKE,
 
-   input         SPI_SCK,
-   input         SPI_DI,
-   inout         SPI_DO,
-   input         SPI_SS2,
-   input         SPI_SS3,
-   input         SPI_SS4,
-   input         CONF_DATA0,
+`ifdef DUAL_SDRAM
+	output [12:0] SDRAM2_A,
+	inout  [15:0] SDRAM2_DQ,
+	output        SDRAM2_DQML,
+	output        SDRAM2_DQMH,
+	output        SDRAM2_nWE,
+	output        SDRAM2_nCAS,
+	output        SDRAM2_nRAS,
+	output        SDRAM2_nCS,
+	output  [1:0] SDRAM2_BA,
+	output        SDRAM2_CLK,
+	output        SDRAM2_CKE,
+`endif
 
-   output [12:0] SDRAM_A,
-   inout  [15:0] SDRAM_DQ,
-   output        SDRAM_DQML,
-   output        SDRAM_DQMH,
-   output        SDRAM_nWE,
-   output        SDRAM_nCAS,
-   output        SDRAM_nRAS,
-   output        SDRAM_nCS,
-   output  [1:0] SDRAM_BA,
-   output        SDRAM_CLK,
-   output        SDRAM_CKE
+	output        AUDIO_L,
+	output        AUDIO_R,
+`ifdef I2S_AUDIO
+	output        I2S_BCK,
+	output        I2S_LRCK,
+	output        I2S_DATA,
+`endif
+`ifdef USE_ADC
+	input         AUDIO_IN,
+`endif
+	input         UART_RX,
+	output        UART_TX
+
 );
+
+`ifdef NO_DIRECT_UPLOAD
+localparam bit DIRECT_UPLOAD = 0;
+wire SPI_SS4 = 1;
+`else
+localparam bit DIRECT_UPLOAD = 1;
+`endif
+
+`ifdef USE_QSPI
+localparam bit QSPI = 1;
+assign QDAT = 4'hZ;
+`else
+localparam bit QSPI = 0;
+`endif
+
+`ifdef VGA_8BIT
+localparam VGA_BITS = 8;
+`else
+localparam VGA_BITS = 6;
+`endif
+
+`ifdef DUAL_SDRAM
+localparam bit EXTRA_CHIPS=1'b1;
+`else
+localparam bit EXTRA_CHIPS=1'b0;
+`endif
 
 assign LED  = ~ioctl_download & ~bk_ena;
 
@@ -71,6 +128,9 @@ parameter CONF_STR = {
 	"OPQ,Lightgun,Off,Super Scope,Justifier;",
 	"O7,Swap Joysticks,No,Yes;",
 	"OH,Multitap,Disabled,Port2;",
+`ifdef DUAL_SDRAM
+	"OR,GSU Turbo,Off,On;",
+`endif
 	"T0,Reset;",
 	"V,v1.0.",`BUILD_DATE
 };
@@ -84,15 +144,22 @@ wire       multitap = status[17];
 wire       BLEND = ~status[16];
 wire       bk_save = status[15];
 wire [1:0] GUN_MODE = status[26:25];
+wire       GSU_TURBO = status[27];
 
 ////////////////////   CLOCKS   ///////////////////
 
 wire locked;
 wire clk_sys, clk_mem;
 
+`ifdef DUAL_SDRAM
+pll_sdram pll
+(
+	.inclk0(CLOCK_50),
+`else
 pll pll
 (
-	.inclk0(CLOCK_27[0]),
+	.inclk0(CLOCK_27),
+`endif
 	.c0(SDRAM_CLK),
 	.c1(clk_mem),
 	.c2(clk_sys),
@@ -102,6 +169,17 @@ pll pll
 reg reset;
 always @(posedge clk_sys) begin
 	reset <= buttons[1] | status[0] | ioctl_download;
+end
+
+reg RESET_N = 0;
+reg RFSH = 0;
+always @(posedge clk_sys) begin
+	reg [1:0] div;
+
+	div <= div + 1'd1;
+	RFSH <= !div;
+
+	if (div == 2) RESET_N <= ~reset;
 end
 
 //////////////////   MiST I/O   ///////////////////
@@ -145,7 +223,7 @@ wire        sd_buff_rd;
 wire        img_mounted;
 wire [31:0] img_size;
 
-user_io #(.ROM_DIRECT_UPLOAD(1'b1)) user_io
+user_io #(.ROM_DIRECT_UPLOAD(DIRECT_UPLOAD)) user_io
 (
 	.clk_sys(clk_sys),
 	.clk_sd(clk_sys),
@@ -197,7 +275,7 @@ always @(posedge clk_sys) begin
 	if (mouse_strobe) mouse_strobe_level <= ~mouse_strobe_level;
 end
 
-data_io #(.ROM_DIRECT_UPLOAD(1'b1), .DOUT_16(1'b1)) data_io
+data_io #(.ROM_DIRECT_UPLOAD(DIRECT_UPLOAD), .DOUT_16(1'b1)) data_io
 (
 	.clk_sys(clk_sys),
 	.SPI_SCK(SPI_SCK),
@@ -217,20 +295,33 @@ data_io #(.ROM_DIRECT_UPLOAD(1'b1), .DOUT_16(1'b1)) data_io
 ////////////////////////////  SDRAM  ///////////////////////////////////
 wire [23:0] ROM_ADDR;
 wire [24:0] ioctl_addr_adj = ioctl_addr - ioctl_filesize[9:0]; // adjust for 512 byte SMC header
-wire [23:1] rom_addr_rw = cart_download ? ioctl_addr_adj[23:1] : ROM_ADDR[23:1];
+wire [23:0] rom_addr_rw = cart_download ? ioctl_addr_adj[23:0] : ROM_ADDR[23:0];
 reg  [23:1] rom_addr_sd;
 wire        ROM_CE_N;
 wire        ROM_OE_N;
+wire        ROM_WE_N;
 wire        ROM_WORD;
-wire [15:0] ROM_Q = (ROM_WORD || ~ROM_ADDR[0]) ? cpu_port0 : { cpu_port0[7:0], cpu_port0[15:8] };
+wire [15:0] ROM_D;
+wire [15:0] ROM_Q;
+`ifndef DUAL_SDRAM
+assign      ROM_Q = (ROM_WORD || ~ROM_ADDR[0]) ? cpu_port0 : { cpu_port0[7:0], cpu_port0[15:8] };
+`endif
+
 wire [15:0] cpu_port0;
 wire [15:0] cpu_port1;
 reg         cpu_port;
+
 reg         cpu_req;
 reg   [1:0] cpu_ds;
 reg  [15:0] cpu_din;
 reg  [23:1] cpu_addr_sd;
 reg         cpu_we;
+
+reg         cpu2_req;
+reg   [1:0] cpu2_ds;
+reg  [15:0] cpu2_din;
+reg  [23:1] cpu2_addr_sd;
+reg         cpu2_we;
 
 wire [16:0] WRAM_ADDR;
 reg  [16:0] wram_addr_sd;
@@ -238,7 +329,8 @@ wire        WRAM_CE_N;
 wire        WRAM_OE_N;
 wire        WRAM_RD_N;
 wire        WRAM_WE_N;
-wire  [7:0] WRAM_Q = WRAM_ADDR[0] ? cpu_port1[15:8] : cpu_port1[7:0];
+wire  [7:0] WRAM_SD_Q = WRAM_ADDR[0] ? cpu_port1[15:8] : cpu_port1[7:0];
+wire  [7:0] WRAM_Q;
 wire  [7:0] WRAM_D;
 wire        wram_rd = ~WRAM_CE_N & ~WRAM_RD_N;
 reg         wram_rdD;
@@ -251,7 +343,8 @@ wire        BSRAM_CE_N;
 wire        BSRAM_OE_N;
 wire        BSRAM_WE_N;
 wire        BSRAM_RD_N;
-wire  [7:0] BSRAM_Q = BSRAM_ADDR[0] ? bsram_dout[15:8] : bsram_dout[7:0];
+wire  [7:0] BSRAM_SD_Q = BSRAM_ADDR[0] ? bsram_dout[15:8] : bsram_dout[7:0];
+wire  [7:0] BSRAM_Q;
 wire  [7:0] BSRAM_D;
 reg   [7:0] bsram_din;
 wire [15:0] bsram_dout;
@@ -305,15 +398,21 @@ always @(negedge clk_sys) begin
 	wram_rdD <= wram_rd;
 	wram_wrD <= wram_wr;
 	if (spc_download) begin
-	end else if ((~cart_download && ~ROM_CE_N /*&& ~ROM_OE_N */&& rom_addr_sd != rom_addr_rw) || (ioctl_wr & cart_download)) begin
-		rom_addr_sd <= rom_addr_rw;
+	end
+	else
+`ifndef DUAL_SDRAM
+	if ((~cart_download && ~ROM_CE_N /*&& ~ROM_OE_N */&& rom_addr_sd != rom_addr_rw[23:1]) || (ioctl_wr & cart_download)) begin
+		rom_addr_sd <= rom_addr_rw[23:1];
 		cpu_req <= ~cpu_req;
 		cpu_addr_sd <= rom_addr_rw;
 		cpu_we <= cart_download;
 		cpu_din <= ioctl_dout;
 		cpu_ds <= 2'b11;
 		cpu_port <= 0;
-	end else if ((wram_rd && WRAM_ADDR[16:1] != wram_addr_sd[16:1]) || (~wram_wrD & wram_wr) || (~wram_rdD & wram_rd)) begin
+	end
+	else
+`endif
+	if ((wram_rd && WRAM_ADDR[16:1] != wram_addr_sd[16:1]) || (~wram_wrD & wram_wr) || (~wram_rdD & wram_rd)) begin
 		wram_addr_sd <= WRAM_ADDR;
 		cpu_req <= ~cpu_req;
 		cpu_addr_sd <= {7'b1110111, WRAM_ADDR[16:1]};
@@ -335,11 +434,11 @@ always @(negedge clk_sys) begin
 		aram_din <= {ARAM_D, ARAM_D};
 	end
 
-	if (reset) begin
+	if (~RESET_N) begin
 //		vram1_addr_sd <= 15'h7fff;
 //		vram2_addr_sd <= 15'h7fff;
 	end else begin
-
+`ifndef DUAL_SDRAM
 		bsram_rdD <= bsram_rd;
 		bsram_wrD <= bsram_wr;
 		if ((bsram_rd && BSRAM_ADDR[19:1] != bsram_sd_addr[19:1]) || (~bsram_wrD & bsram_wr) || (~bsram_rdD & bsram_rd)) begin
@@ -361,16 +460,66 @@ always @(negedge clk_sys) begin
 			vram2_din <= VRAM2_D;
 			vram2_req <= ~vram2_req;
 		end
+`endif
+
 	end
 
 end
 
-sdram sdram
+`ifdef DUAL_SDRAM
+
+localparam  BSRAM_BITS = 17; // 1Mbits
+
+dpram #(BSRAM_BITS,8) bsram 
 (
-	.*,
+	.clock(clk_sys),
+
+	.address_a(BSRAM_ADDR),
+	.data_a(BSRAM_D),
+	.wren_a(~BSRAM_CE_N & ~BSRAM_WE_N),
+	.q_a(BSRAM_Q),
+
+	.address_b({sd_lba[BSRAM_BITS-9:0],sd_buff_addr}),
+	.data_b(sd_buff_dout),
+	.wren_b(sd_buff_wr & sd_ack),
+	.q_b(sd_buff_din)
+);
+
+dpram #(15)	vram1
+(
+	.clock(clk_sys),
+	.address_a(VRAM1_ADDR[14:0]),
+	.data_a(VRAM1_D),
+	.wren_a(~VRAM1_WE_N),
+	.q_a(VRAM1_Q)
+);
+
+dpram #(15) vram2
+(
+	.clock(clk_sys),
+	.address_a(VRAM2_ADDR[14:0]),
+	.data_a(VRAM2_D),
+	.wren_a(~VRAM2_WE_N),
+	.q_a(VRAM2_Q)
+);
+
+`endif
+
+sdram_cl3 sdram
+(
 	.init_n(locked),
 	.clk(clk_mem),
 	.clkref(DOT_CLK_CE),
+
+	.SDRAM_DQ(SDRAM_DQ),
+	.SDRAM_A(SDRAM_A),
+	.SDRAM_DQML(SDRAM_DQML),
+	.SDRAM_DQMH(SDRAM_DQMH),
+	.SDRAM_BA(SDRAM_BA),
+	.SDRAM_nCS(SDRAM_nCS),
+	.SDRAM_nWE(SDRAM_nWE),
+	.SDRAM_nCAS(SDRAM_nCAS),
+	.SDRAM_nRAS(SDRAM_nRAS),
 
 	.cpu_addr(cpu_addr_sd),
 	.cpu_din(cpu_din),
@@ -382,6 +531,7 @@ sdram sdram
 	.cpu_port0(cpu_port0),
 	.cpu_port1(cpu_port1),
 
+`ifndef DUAL_SDRAM
 	.bsram_addr(bsram_sd_addr),
 //	.bsram_din(bsram_din), // OBC1 doesn't like this
 	.bsram_din(BSRAM_D),
@@ -401,20 +551,17 @@ sdram sdram
 	.vram1_req(vram1_req),
 	.vram1_ack(),
 	.vram1_addr(vram1_addr_sd),
-//	.vram1_din(VRAM1_D),
 	.vram1_din(vram1_din),
 	.vram1_dout(VRAM1_Q),
-//	.vram1_we(~VRAM1_WE_N),
 	.vram1_we(~vram1_we_nD),
 
 	.vram2_req(vram2_req),
 	.vram2_ack(),
 	.vram2_addr(vram2_addr_sd),
-//	.vram2_din(VRAM2_D),
 	.vram2_din(vram2_din),
 	.vram2_dout(VRAM2_Q),
-//	.vram2_we(~VRAM2_WE_N),
 	.vram2_we(~vram2_we_nD),
+`endif
 
 	.aram_16(spc_download),
 	.aram_addr(aram_addr_sd),
@@ -429,6 +576,46 @@ sdram sdram
 
 assign SDRAM_CKE = 1'b1;
 
+`ifdef DUAL_SDRAM
+
+wire locked2;
+wire clk_mem2;
+
+pll_sdram2 pll_sdram2
+(
+	.inclk0(CLOCK_50),
+	.c0(clk_mem2),
+	.locked(locked2)
+);
+
+assign SDRAM2_CLK = clk_mem2;
+
+sdram sdram2
+(
+	.SDRAM_DQ(SDRAM2_DQ),
+	.SDRAM_A(SDRAM2_A),
+	.SDRAM_DQML(SDRAM2_DQML),
+	.SDRAM_DQMH(SDRAM2_DQMH),
+	.SDRAM_BA(SDRAM2_BA),
+	.SDRAM_nCS(SDRAM2_nCS),
+	.SDRAM_nWE(SDRAM2_nWE),
+	.SDRAM_nCAS(SDRAM2_nCAS),
+	.SDRAM_nRAS(SDRAM2_nRAS),
+	.SDRAM_CKE(SDRAM2_CKE),
+
+	.init(0), //~clock_locked),
+	.clk(clk_mem2),
+
+	.addr(rom_addr_rw),
+	.din(cart_download ? ioctl_dout : ROM_D),
+	.dout(ROM_Q),
+	.rd(~cart_download & (RESET_N ? ~ROM_OE_N : RFSH)),
+	.wr(cart_download ? ioctl_wr : ~ROM_WE_N),
+	.word(cart_download | ROM_WORD),
+	.busy()
+);
+
+`endif
 //////////////////////////  ROM DETECT  /////////////////////////////////
 
 wire cart_download = ioctl_download && ioctl_index[5:1] == 0; //0-1
@@ -501,7 +688,9 @@ always @(posedge clk_sys) begin
 			ram_mask <= (24'd1024 << 4'd6) - 1'd1;
 		end
 		//SA1
-		else if (mapper_header == 8'h23 && (rom_type_header == 8'h32 || rom_type_header == 8'h34 || rom_type_header == 8'h35)) rom_type[7:4] <= 4'h6;
+		else if (mapper_header == 8'h23 && (rom_type_header == 8'h32 || rom_type_header == 8'h34 || rom_type_header == 8'h35)) begin
+			rom_type[7:4] <= 4'h6;
+		end
 	end
 end
 
@@ -511,32 +700,33 @@ wire [16:0] io_addr = ioctl_addr >= 17'h00100 && ioctl_addr < 17'h10100 ? ioctl_
                       ioctl_addr >= 17'h10100 ? {1'b1, ioctl_addr[7:0]} :
                       ioctl_addr[16:0];
 
-main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(1'b0), .USE_SA1(1'b0), .USE_GSU(1'b0), .USE_DLH(1'b1), .USE_SPC7110(1'b0), .USE_BSX(1'b0)) main
+main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(EXTRA_CHIPS), .USE_SA1(EXTRA_CHIPS), .USE_GSU(EXTRA_CHIPS), .USE_DLH(1'b1), .USE_SPC7110(EXTRA_CHIPS), .USE_BSX(1'b0)) main
 (
-	.RESET_N(~reset),
+	.RESET_N(RESET_N),
 
 	.MCLK(clk_sys), // 21.47727 / 21.28137
 	.ACLK(clk_sys),
 	.HALT(bk_state == 1'b1),
 
-	.GSU_ACTIVE(),
-	.GSU_TURBO(1'b0),
-
 	.ROM_TYPE(rom_type),
 	.ROM_MASK(rom_mask),
 	.RAM_MASK(ram_mask),
-	.PAL(PAL),
-	.BLEND(BLEND),
 
 	.ROM_ADDR(ROM_ADDR),
+	.ROM_D(ROM_D),
 	.ROM_Q(ROM_Q),
 	.ROM_CE_N(ROM_CE_N),
 	.ROM_OE_N(ROM_OE_N),
+	.ROM_WE_N(ROM_WE_N),
 	.ROM_WORD(ROM_WORD),
 
 	.BSRAM_ADDR(BSRAM_ADDR),
 	.BSRAM_D(BSRAM_D),
+`ifdef DUAL_SDRAM
 	.BSRAM_Q(BSRAM_Q),
+`else
+	.BSRAM_Q(BSRAM_SD_Q),
+`endif
 	.BSRAM_CE_N(BSRAM_CE_N),
 	.BSRAM_OE_N(BSRAM_OE_N),
 	.BSRAM_WE_N(BSRAM_WE_N),
@@ -544,23 +734,21 @@ main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(1'b0), .USE_SA1(1'b0), .USE_GS
 
 	.WRAM_ADDR(WRAM_ADDR),
 	.WRAM_D(WRAM_D),
-	.WRAM_Q(WRAM_Q),
+	.WRAM_Q(WRAM_SD_Q),
 	.WRAM_CE_N(WRAM_CE_N),
 	.WRAM_OE_N(WRAM_OE_N),
 	.WRAM_WE_N(WRAM_WE_N),
 	.WRAM_RD_N(WRAM_RD_N),
 
-	.VRAM_OE_N(VRAM_OE_N),
-
 	.VRAM1_ADDR(VRAM1_ADDR),
 	.VRAM1_DI(VRAM1_Q),
 	.VRAM1_DO(VRAM1_D),
 	.VRAM1_WE_N(VRAM1_WE_N),
-
 	.VRAM2_ADDR(VRAM2_ADDR),
 	.VRAM2_DI(VRAM2_Q),
 	.VRAM2_DO(VRAM2_D),
 	.VRAM2_WE_N(VRAM2_WE_N),
+	.VRAM_OE_N(VRAM_OE_N),
 
 	.ARAM_ADDR(ARAM_ADDR),
 	.ARAM_D(ARAM_D),
@@ -569,20 +757,24 @@ main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(1'b0), .USE_SA1(1'b0), .USE_GS
 	.ARAM_OE_N(ARAM_OE_N),
 	.ARAM_WE_N(ARAM_WE_N),
 
+	.GSU_ACTIVE(),
+	.GSU_TURBO(GSU_TURBO),
+
+	.BLEND(BLEND),
+	.PAL(PAL),
+	.HIGH_RES(),
+	.FIELD(),
+	.INTERLACE(),
+	.DOTCLK(DOTCLK),
 	.R(R),
 	.G(G),
 	.B(B),
-
-	.FIELD(),
-	.INTERLACE(),
-	.HIGH_RES(),
-	.DOTCLK(DOTCLK),
-	.DOT_CLK_CE(DOT_CLK_CE),
-
 	.HBLANKn(HBLANKn),
 	.VBLANKn(VBLANKn),
 	.HSYNC(HSYNC),
 	.VSYNC(VSYNC),
+
+	.DOT_CLK_CE(DOT_CLK_CE),
 
 	.JOY1_DI(JOY1_DO),
 	.JOY2_DI(|GUN_MODE ? LG_DO : JOY2_DO),
@@ -597,17 +789,32 @@ main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(1'b0), .USE_SA1(1'b0), .USE_GS
 	.IO_ADDR(io_addr),
 	.IO_DAT(ioctl_dout),
 	.IO_WR(spc_download & ioctl_wr & ioctl_addr < 17'h10200),
-
+/*
 	.GG_EN(1'b0),
-	.GG_CODE(),
-	.GG_RESET(),
+	.GG_CODE(128'd0),
+	.GG_RESET(1'b0),
 	.GG_AVAILABLE(1'b0),
-
+*/
 	.TURBO(1'b0),
 	.TURBO_ALLOW(),
 
 	.DBG_BG_EN(5'b11111),
 	.DBG_CPU_EN(1'b1),
+
+	.MSU_TRACK_NUM(),
+	.MSU_TRACK_REQUEST(),
+	.MSU_TRACK_MOUNTING(1'b0),
+	.MSU_TRACK_MISSING(1'b0),
+	.MSU_VOLUME(),
+	.MSU_AUDIO_STOP(1'b0),
+	.MSU_AUDIO_REPEAT(),
+	.MSU_AUDIO_PLAYING(),
+	.MSU_DATA_ADDR(),
+	.MSU_DATA(8'd0),
+	.MSU_DATA_ACK(1'b0),
+	.MSU_DATA_SEEK(),
+	.MSU_DATA_REQ(),
+	.MSU_ENABLE(1'b0),
 
 	.AUDIO_L(audioL),
 	.AUDIO_R(audioR)
@@ -618,7 +825,7 @@ wire [7:0] R,G,B;
 wire       HSYNC,VSYNC;
 wire       HBLANKn,VBLANKn;
 
-mist_video #(.SD_HCNT_WIDTH(10), .COLOR_DEPTH(6), .USE_BLANKS(1'b1)) mist_video
+mist_video #(.SD_HCNT_WIDTH(10), .COLOR_DEPTH(8), .USE_BLANKS(1'b1), .OUT_COLOR_DEPTH(VGA_BITS)) mist_video
 (
 	.clk_sys(clk_sys),
 	.scanlines(scanlines),
@@ -634,9 +841,9 @@ mist_video #(.SD_HCNT_WIDTH(10), .COLOR_DEPTH(6), .USE_BLANKS(1'b1)) mist_video
 	.VSync(~VSYNC),
 	.HBlank(~HBLANKn),
 	.VBlank(~VBLANKn),
-	.R((LG_TARGET && |GUN_MODE) ? {6{LG_TARGET[0]}} : R[7:2]),
-	.G((LG_TARGET && |GUN_MODE) ? {6{LG_TARGET[1]}} : G[7:2]),
-	.B((LG_TARGET && |GUN_MODE) ? {6{LG_TARGET[2]}} : B[7:2]),
+	.R((LG_TARGET && |GUN_MODE) ? {8{LG_TARGET[0]}} : R),
+	.G((LG_TARGET && |GUN_MODE) ? {8{LG_TARGET[1]}} : G),
+	.B((LG_TARGET && |GUN_MODE) ? {8{LG_TARGET[2]}} : B),
 	.VGA_HS(VGA_HS),
 	.VGA_VS(VGA_VS),
 	.VGA_R(VGA_R),
@@ -650,7 +857,7 @@ wire [15:0] audioL, audioR;
 hybrid_pwm_sd dacl
 (
 	.clk(clk_sys),
-	.n_reset(~reset),
+	.n_reset(RESET_N),
 	.din({~audioL[15], audioL[14:0]}),
 	.dout(AUDIO_L)
 );
@@ -658,7 +865,7 @@ hybrid_pwm_sd dacl
 hybrid_pwm_sd dacr
 (
 	.clk(clk_sys),
-	.n_reset(~reset),
+	.n_reset(RESET_N),
 	.din({~audioR[15], audioR[14:0]}),
 	.dout(AUDIO_R)
 );
@@ -724,7 +931,7 @@ wire       DOTCLK;
 lightgun lightgun
 (
 	.CLK(clk_sys),
-	.RESET(reset),
+	.RESET(~RESET_N),
 
 	.MOUSE(ps2_mouse),
 	.MOUSE_XY(1'b1),
@@ -761,7 +968,9 @@ reg         bk_ena, bk_load;
 reg         bk_state;
 reg  [11:0] sav_size;
 
+`ifndef DUAL_SDRAM
 assign      sd_buff_din = sd_buff_addr[0] ? bsram_io_q_save[15:8] : bsram_io_q_save[7:0];
+`endif
 
 always @(posedge clk_mem) bsram_io_req_d <= bsram_io_req;
 always @(posedge clk_sys) begin
@@ -771,7 +980,7 @@ always @(posedge clk_sys) begin
 	reg bk_loadD, bk_saveD;
 	reg sd_ackD;
 
-	if (reset) begin
+	if (~RESET_N) begin
 		bk_ena <= 0;
 		bk_state <= 0;
 		bk_load <= 0;
