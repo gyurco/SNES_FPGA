@@ -33,6 +33,7 @@ module sdram_cl3 (
 	output            SDRAM_nWE,  // write enable
 	output            SDRAM_nRAS, // row address select
 	output            SDRAM_nCAS, // columns address select
+	output            SDRAM_CKE = 0,  // clock enable
 
 	// cpu/chipset interface
 	input             init_n,     // init signal after FPGA config to initialize RAM
@@ -160,14 +161,14 @@ end
 
 // wait 1ms (32 8Mhz cycles) after FPGA config is done before going
 // into normal operation. Initialize the ram in the last 16 reset cycles (cycles 15-0)
-reg [4:0]  reset;
+reg [7:0]  reset = 8'hff;
 reg        init = 1'b1;
 always @(posedge clk,negedge init_n) begin
 	if(!init_n) begin
-		reset <= 5'h1f;
+		reset <= 8'hff;
 		init <= 1'b1;
 	end else begin
-		if((t == STATE_LAST) && (reset != 0)) reset <= reset - 5'd1;
+		if((t == STATE_LAST) && (reset != 0)) reset <= reset - 1'd1;
 		init <= !(reset == 0);
 	end
 end
@@ -329,7 +330,7 @@ assign bsram_dout = (t == STATE_READ0 && oe_latch[0] && port[0] == PORT_BSRAM) ?
 
 always @(posedge clk) begin
 
-	// permanently latch ram data to reduce delays
+	// permanently latch ram data to fast input registers
 	sd_din <= SDRAM_DQ;
 	SDRAM_DQ <= 16'bZZZZZZZZZZZZZZZZ;
 	{ SDRAM_DQMH, SDRAM_DQML } <= 2'b11;
@@ -341,23 +342,28 @@ always @(posedge clk) begin
 
 		// initialization takes place at the end of the reset phase
 		if(t == STATE_RAS0) begin
-
-			if(reset == 15) begin
+			case (reset)
+			31: SDRAM_CKE <= 1;
+			15: begin
 				sd_cmd <= CMD_PRECHARGE;
 				sd_a[10] <= 1'b1;      // precharge all banks
 			end
 
-			if(reset == 10 || reset == 8) begin
+			10,8: begin
 				sd_cmd <= CMD_AUTO_REFRESH;
 			end
 
-			if(reset == 2) begin
+			2: begin
 				sd_cmd <= CMD_LOAD_MODE;
 				sd_a <= MODE;
 				SDRAM_BA <= 2'b00;
 			end
+			default: ;
+			endcase
 		end
-	end else begin
+	end
+	else
+	begin
 
 		refresh_cnt <= refresh_cnt + 1'd1;
 

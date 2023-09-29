@@ -520,6 +520,7 @@ sdram_cl3 sdram
 	.SDRAM_nWE(SDRAM_nWE),
 	.SDRAM_nCAS(SDRAM_nCAS),
 	.SDRAM_nRAS(SDRAM_nRAS),
+	.SDRAM_CKE(SDRAM_CKE),
 
 	.cpu_addr(cpu_addr_sd),
 	.cpu_din(cpu_din),
@@ -573,8 +574,6 @@ sdram_cl3 sdram
 //	.aram_we(~ARAM_WE_N)
 	.aram_we(spc_download | aram_wr_last)
 );
-
-assign SDRAM_CKE = 1'b1;
 
 `ifdef DUAL_SDRAM
 
