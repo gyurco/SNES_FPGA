@@ -19,7 +19,9 @@
 module SNES_MIST_TOP
 (
 	input         CLOCK_27,
+`ifdef USE_CLOCK_50
 	input         CLOCK_50,
+`endif
 
 	output        LED,
 	output [VGA_BITS-1:0] VGA_R,
@@ -105,6 +107,14 @@ localparam VGA_BITS = 8;
 localparam VGA_BITS = 6;
 `endif
 
+`ifdef BIG_OSD
+localparam bit BIG_OSD = 1;
+`define SEP "-;",
+`else
+localparam bit BIG_OSD = 0;
+`define SEP
+`endif
+
 `ifdef DUAL_SDRAM
 localparam bit EXTRA_CHIPS=1'b1;
 `else
@@ -116,10 +126,11 @@ assign LED  = ~ioctl_download & ~bk_ena;
 `include "build_id.v"
 parameter CONF_STR = {
 	"SNES;;",
-	"F,SFCSMCBIN,Load;",
-	"F,SPC,Load;",
+	"F1,SFCSMCBIN,Load;",
+	"F2,SPC,Load;",
 	"S,SAV,Mount;",
 	"TF,Write Save RAM;",
+	`SEP
 	"OE,Video Region,NTSC,PAL;",
 	"OAB,Scandoubler Fx,None,CRT 25%,CRT 50%,CRT 75%;",
 	"OG,Blend,On,Off;",
@@ -151,7 +162,7 @@ wire       GSU_TURBO = status[27];
 wire locked;
 wire clk_sys, clk_mem;
 
-`ifdef DUAL_SDRAM
+`ifdef USE_CLOCK_50
 pll_sdram pll
 (
 	.inclk0(CLOCK_50),
@@ -223,7 +234,7 @@ wire        sd_buff_rd;
 wire        img_mounted;
 wire [31:0] img_size;
 
-user_io #(.ROM_DIRECT_UPLOAD(DIRECT_UPLOAD)) user_io
+user_io #(.ROM_DIRECT_UPLOAD(DIRECT_UPLOAD), .FEATURES(32'h0 | (BIG_OSD << 13))) user_io
 (
 	.clk_sys(clk_sys),
 	.clk_sd(clk_sys),
@@ -824,7 +835,7 @@ wire [7:0] R,G,B;
 wire       HSYNC,VSYNC;
 wire       HBLANKn,VBLANKn;
 
-mist_video #(.SD_HCNT_WIDTH(10), .COLOR_DEPTH(8), .USE_BLANKS(1'b1), .OUT_COLOR_DEPTH(VGA_BITS)) mist_video
+mist_video #(.SD_HCNT_WIDTH(10), .COLOR_DEPTH(8), .USE_BLANKS(1'b1), .OUT_COLOR_DEPTH(VGA_BITS), .BIG_OSD(BIG_OSD)) mist_video
 (
 	.clk_sys(clk_sys),
 	.scanlines(scanlines),
