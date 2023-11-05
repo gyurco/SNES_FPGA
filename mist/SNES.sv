@@ -415,7 +415,7 @@ always @(negedge clk_sys) begin
 	if ((~cart_download && ~ROM_CE_N /*&& ~ROM_OE_N */&& rom_addr_sd != rom_addr_rw[23:1]) || (ioctl_wr & cart_download)) begin
 		rom_addr_sd <= rom_addr_rw[23:1];
 		cpu_req <= ~cpu_req;
-		cpu_addr_sd <= rom_addr_rw;
+		cpu_addr_sd <= rom_addr_rw[23:1];
 		cpu_we <= cart_download;
 		cpu_din <= ioctl_dout;
 		cpu_ds <= 2'b11;
