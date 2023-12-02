@@ -153,9 +153,9 @@ parameter CONF_STR = {
 	"F1,SFCSMCBIN,Load;",
 	"F2,SPC,Load;",
 	"S,SAV,Mount;",
-	"TF,Write Save RAM;",
+	"T3,Write Save RAM;",
 	`SEP
-	"OE,Video Region,NTSC,PAL;",
+	"OEF,Video Region,NTSC,PAL,NTSC-DeJittered;",
 	"OAB,Scandoubler Fx,None,CRT 25%,CRT 50%,CRT 75%;",
 	"OG,Blend,On,Off;",
 	"O12,ROM Type,LoROM,HiROM,ExHiROM;",
@@ -172,12 +172,12 @@ parameter CONF_STR = {
 
 wire [1:0] LHRom_type = status[2:1];
 wire [1:0] scanlines = status[11:10];
-wire       video_region = status[14];
+wire [1:0] video_region = status[15:14];
 wire [1:0] mouse_mode = status[6:5];
 wire       joy_swap = status[7];
 wire       multitap = status[17];
 wire       BLEND = ~status[16];
-wire       bk_save = status[15];
+wire       bk_save = status[3];
 wire [1:0] GUN_MODE = status[26:25];
 wire       GSU_TURBO = status[27];
 
@@ -692,7 +692,7 @@ always @(posedge clk_sys) begin
 	if(ioctl_wr) spc_mode <= spc_download;
 end
 
-reg        PAL;
+reg  [1:0] PAL;
 reg  [7:0] rom_type;
 reg  [7:0] rom_type_header;
 reg  [7:0] mapper_header;
@@ -826,7 +826,8 @@ main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(EXTRA_CHIPS), .USE_SA1(EXTRA_C
 	.GSU_TURBO(GSU_TURBO),
 
 	.BLEND(BLEND),
-	.PAL(PAL),
+	.PAL(PAL[0]),
+	.DIS_SHORTLINE(PAL[1]),
 	.HIGH_RES(),
 	.FIELD(),
 	.INTERLACE(),

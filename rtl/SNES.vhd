@@ -15,6 +15,7 @@ entity SNES is
 		ENABLE		: in std_logic;
 		PAL			: in std_logic;
 		BLEND			: in std_logic;
+		DIS_SHORTLINE : in std_logic;
 		
 		CA       	: out std_logic_vector(23 downto 0);
 		CPURD_N		: out std_logic;
@@ -310,6 +311,7 @@ begin
 		CLK			=> MCLK,
 		SYSCLK_CE	=> INT_SYSCLKF_CE,
 		ENABLE		=> ENABLE,
+		DIS_SHORTLINE => DIS_SHORTLINE,
 		
 		PA				=> INT_PA,
 		PARD_N		=> INT_PARD_N,

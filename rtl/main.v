@@ -55,6 +55,7 @@ module main (
 
 	input             BLEND,
 	input             PAL,
+	input             DIS_SHORTLINE,
 	output            HIGH_RES,
 	output            FIELD,
 	output            INTERLACE,
@@ -210,6 +211,7 @@ SNES SNES
 
 	.blend(BLEND),
 	.pal(PAL),
+	.dis_shortline(DIS_SHORTLINE),
 	.high_res(HIGH_RES),
 	.field_out(FIELD),
 	.interlace(INTERLACE),
