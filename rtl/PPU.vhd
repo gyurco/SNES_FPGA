@@ -274,7 +274,12 @@ signal SUB_MATH_R			: unsigned(4 downto 0);
 signal SUB_MATH_G			: unsigned(4 downto 0);
 signal SUB_MATH_B			: unsigned(4 downto 0);
 signal HIRES 				: std_logic;
-	
+
+type HOAM_TYPE is array (0 to (2**5)-1) of std_logic_vector(7 downto 0);
+signal HOAM : HOAM_TYPE;
+attribute ramstyle : string;
+attribute ramstyle of HOAM : signal is "logic";
+
 begin
 
 process( RST_N, CLK )
@@ -1405,14 +1410,24 @@ OAM_ADDR_A <= OAM_ADDR(8 downto 1);
 OAM_ADDR_B <= OAM_ADDR(8 downto 2);
 OAM_WE <= ENABLE when (OAM_ADDR(9) = '0' or (IN_VBL = '0' and FORCE_BLANK = '0')) and OAM_ADDR(0) = '1' and PAWR_N = '0' and PA = x"04" and SYSCLK_CE = '1' else '0';
 
-HOAM : entity work.spram generic map(5,8)
-port map(
-	clock		=> CLK,
-	data		=> DI,
-	address	=> HOAM_ADDR,
-	wren		=> HOAM_WE,
-	q			=> HOAM_Q
-);
+--HOAM : entity work.spram generic map(5,8)
+--port map(
+--	clock		=> CLK,
+--	data		=> DI,
+--	address	=> HOAM_ADDR,
+--	wren		=> HOAM_WE,
+--	q			=> HOAM_Q
+--);
+
+process (CLK) begin
+	if rising_edge(CLK) then
+		HOAM_Q <= HOAM(to_integer(unsigned(HOAM_ADDR)));
+		if HOAM_WE = '1' then
+			HOAM(to_integer(unsigned(HOAM_ADDR))) <= DI;
+		end if;
+	end if;
+end process;
+
 HOAM_ADDR <= OAM_ADDR(8 downto 4) when IN_VBL = '0' and FORCE_BLANK = '0' else
 				 OAM_ADDR(4 downto 0);
 HOAM_WE <= ENABLE when (OAM_ADDR(9) = '1' or (IN_VBL = '0' and FORCE_BLANK = '0')) and PAWR_N = '0' and PA = x"04" and SYSCLK_CE = '1' else '0';
