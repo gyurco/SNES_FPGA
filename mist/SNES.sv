@@ -30,6 +30,23 @@ module SNES_MIST_TOP
 	output        VGA_HS,
 	output        VGA_VS,
 
+`ifdef USE_HDMI
+	output        HDMI_RST,
+	output  [7:0] HDMI_R,
+	output  [7:0] HDMI_G,
+	output  [7:0] HDMI_B,
+	output        HDMI_HS,
+	output        HDMI_VS,
+	output        HDMI_PCLK,
+	output        HDMI_DE,
+	inout         HDMI_SDA,
+	inout         HDMI_SCL,
+	input         HDMI_INT,
+	output        HDMI_BCK,
+	output        HDMI_LRCK,
+	output        HDMI_SDATA,
+`endif
+
 	input         SPI_SCK,
 	inout         SPI_DO,
 	input         SPI_DI,
@@ -107,6 +124,13 @@ localparam VGA_BITS = 8;
 localparam VGA_BITS = 6;
 `endif
 
+`ifdef USE_HDMI
+localparam bit HDMI = 1;
+assign HDMI_RST = 1'b1;
+`else
+localparam bit HDMI = 0;
+`endif
+
 `ifdef BIG_OSD
 localparam bit BIG_OSD = 1;
 `define SEP "-;",
@@ -160,7 +184,7 @@ wire       GSU_TURBO = status[27];
 ////////////////////   CLOCKS   ///////////////////
 
 wire locked;
-wire clk_sys, clk_mem;
+wire clk_sys, clk_mem, clk_hdmi;
 
 `ifdef USE_CLOCK_50
 pll_sdram pll
@@ -174,6 +198,9 @@ pll pll
 	.c0(SDRAM_CLK),
 	.c1(clk_mem),
 	.c2(clk_sys),
+`ifdef USE_HDMI
+	.c3(clk_hdmi),
+`endif
 	.locked(locked)
 );
 
@@ -234,19 +261,47 @@ wire        sd_buff_rd;
 wire        img_mounted;
 wire [31:0] img_size;
 
-user_io #(.ROM_DIRECT_UPLOAD(DIRECT_UPLOAD), .FEATURES(32'h0 | (BIG_OSD << 13))) user_io
-(
+`ifdef USE_HDMI
+wire        i2c_start;
+wire        i2c_read;
+wire  [6:0] i2c_addr;
+wire  [7:0] i2c_subaddr;
+wire  [7:0] i2c_dout;
+wire  [7:0] i2c_din;
+wire        i2c_ack;
+wire        i2c_end;
+`endif
+
+user_io #(
+	.ROM_DIRECT_UPLOAD(DIRECT_UPLOAD),
+`ifdef DUAL_SDRAM
+	.STRLEN($size(CONF_STR)>>3),
+`endif
+	.FEATURES(32'h0 | (BIG_OSD << 13) | (HDMI << 14))
+) user_io (
 	.clk_sys(clk_sys),
 	.clk_sd(clk_sys),
 	.SPI_SS_IO(CONF_DATA0),
 	.SPI_CLK(SPI_SCK),
 	.SPI_MOSI(SPI_DI),
 	.SPI_MISO(SPI_DO),
-
-//	.conf_str(CONF_STR),
+`ifdef DUAL_SDRAM
+	.conf_str(CONF_STR),
+`else
 	.conf_addr(conf_str_addr),
 	.conf_chr(conf_str_char),
+`endif
 
+`ifdef USE_HDMI
+	.i2c_start      (i2c_start      ),
+	.i2c_read       (i2c_read       ),
+	.i2c_addr       (i2c_addr       ),
+	.i2c_subaddr    (i2c_subaddr    ),
+	.i2c_dout       (i2c_dout       ),
+	.i2c_din        (i2c_din        ),
+	.i2c_ack        (i2c_ack        ),
+	.i2c_end        (i2c_end        ),
+`endif
 	.status(status),
 	.scandoubler_disable(scandoubler_disable),
 	.ypbpr(ypbpr),
@@ -710,7 +765,7 @@ wire [16:0] io_addr = ioctl_addr >= 17'h00100 && ioctl_addr < 17'h10100 ? ioctl_
                       ioctl_addr >= 17'h10100 ? {1'b1, ioctl_addr[7:0]} :
                       ioctl_addr[16:0];
 
-main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(EXTRA_CHIPS), .USE_SA1(EXTRA_CHIPS), .USE_GSU(EXTRA_CHIPS), .USE_DLH(1'b1), .USE_SPC7110(EXTRA_CHIPS), .USE_BSX(1'b0)) main
+main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(EXTRA_CHIPS), .USE_SA1(EXTRA_CHIPS), .USE_GSU(EXTRA_CHIPS), .USE_DLH(1'b1), .USE_SPC7110(1'b0), .USE_BSX(1'b0)) main
 (
 	.RESET_N(RESET_N),
 
@@ -860,6 +915,54 @@ mist_video #(.SD_HCNT_WIDTH(10), .COLOR_DEPTH(8), .USE_BLANKS(1'b1), .OUT_COLOR_
 	.VGA_G(VGA_G),
 	.VGA_B(VGA_B)
 );
+
+`ifdef USE_HDMI
+i2c_master #(21_000_000) i2c_master (
+	.CLK         (clk_sys),
+	.I2C_START   (i2c_start),
+	.I2C_READ    (i2c_read),
+	.I2C_ADDR    (i2c_addr),
+	.I2C_SUBADDR (i2c_subaddr),
+	.I2C_WDATA   (i2c_dout),
+	.I2C_RDATA   (i2c_din),
+	.I2C_END     (i2c_end),
+	.I2C_ACK     (i2c_ack),
+
+	//I2C bus
+	.I2C_SCL     (HDMI_SCL),
+	.I2C_SDA     (HDMI_SDA)
+);
+
+mist_video #(.SD_HCNT_WIDTH(10), .COLOR_DEPTH(8), .USE_BLANKS(1'b1), .OUT_COLOR_DEPTH(8), .BIG_OSD(BIG_OSD), .VIDEO_CLEANER(1)) hdmi_video
+(
+	.clk_sys(clk_hdmi),
+	.scanlines(scanlines),
+	.scandoubler_disable(1'b0),
+	.ypbpr(1'b0),
+	.no_csync(1'b1),
+	.rotate(2'b00),
+	.ce_divider(3'd3),
+	.SPI_DI(SPI_DI),
+	.SPI_SCK(SPI_SCK),
+	.SPI_SS3(SPI_SS3),
+	.HSync(~HSYNC),
+	.VSync(~VSYNC),
+	.HBlank(~HBLANKn),
+	.VBlank(~VBLANKn),
+	.R((LG_TARGET && |GUN_MODE) ? {8{LG_TARGET[0]}} : R),
+	.G((LG_TARGET && |GUN_MODE) ? {8{LG_TARGET[1]}} : G),
+	.B((LG_TARGET && |GUN_MODE) ? {8{LG_TARGET[2]}} : B),
+	.VGA_HS(HDMI_HS),
+	.VGA_VS(HDMI_VS),
+	.VGA_R(HDMI_R),
+	.VGA_G(HDMI_G),
+	.VGA_B(HDMI_B),
+	.VGA_DE(HDMI_DE)
+);
+
+assign HDMI_PCLK = clk_hdmi;
+
+`endif
 
 //////////////////   AUDIO   //////////////////
 wire [15:0] audioL, audioR;
