@@ -42,9 +42,6 @@ module SNES_MIST_TOP
 	inout         HDMI_SDA,
 	inout         HDMI_SCL,
 	input         HDMI_INT,
-	output        HDMI_BCK,
-	output        HDMI_LRCK,
-	output        HDMI_SDATA,
 `endif
 
 	input         SPI_SCK,
@@ -96,7 +93,10 @@ module SNES_MIST_TOP
 	output        I2S_LRCK,
 	output        I2S_DATA,
 `endif
-`ifdef USE_ADC
+`ifdef SPDIF_AUDIO
+	output        SPDIF,
+`endif
+`ifdef USE_AUDIO_IN
 	input         AUDIO_IN,
 `endif
 	input         UART_RX,
@@ -983,6 +983,32 @@ hybrid_pwm_sd dacr
 	.din({~audioR[15], audioR[14:0]}),
 	.dout(AUDIO_R)
 );
+
+`ifdef I2S_AUDIO
+i2s i2s (
+	.reset(1'b0),
+	.clk(clk_mem),
+	.clk_rate(32'd128_000_000),
+
+	.sclk(I2S_BCK),
+	.lrclk(I2S_LRCK),
+	.sdata(I2S_DATA),
+
+	.left_chan(audioR),
+	.right_chan(audioL)
+);
+`endif
+
+`ifdef SPDIF_AUDIO
+spdif spdif
+(
+	.clk_i(clk_mem),
+	.rst_i(1'b0),
+	.clk_rate_i(32'd128_000_000),
+	.spdif_o(SPDIF),
+	.sample_i({audioR, audioL})
+);
+`endif
 
 ////////////////////////////  I/O PORTS  ////////////////////////////////
 wire [11:0] joy0 = { joystick0[7:6], joystick0[11:8], joystick0[5:0] };

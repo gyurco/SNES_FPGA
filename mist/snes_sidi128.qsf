@@ -118,9 +118,7 @@ set_location_assignment PIN_A13 -to HDMI_SDA
 set_location_assignment PIN_C10 -to HDMI_SCL
 set_location_assignment PIN_B10 -to HDMI_RST
 
-set_location_assignment PIN_A7 -to HDMI_LRCK
-set_location_assignment PIN_D6 -to HDMI_BCK
-set_location_assignment PIN_E6 -to HDMI_SDATA
+set_location_assignment PIN_D6 -to SPDIF
 
 set_location_assignment PIN_AA7 -to SPI_DO
 set_location_assignment PIN_AB6 -to SPI_DI
@@ -215,6 +213,12 @@ set_location_assignment PIN_AA8 -to QDAT[0]
 set_location_assignment PIN_AB8 -to QDAT[1]
 set_location_assignment PIN_AA9 -to QDAT[2]
 set_location_assignment PIN_AB10 -to QDAT[3]
+
+set_location_assignment PIN_G4 -to I2S_LRCK
+set_location_assignment PIN_F1 -to I2S_BCK
+set_location_assignment PIN_H5 -to I2S_DATA
+
+set_location_assignment PIN_F2 -to AUDIO_IN
 
 # Classic Timing Assignments
 # ==========================
@@ -340,9 +344,7 @@ set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to HDMI_B[*]
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to HDMI_HS
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to HDMI_VS
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to HDMI_DE
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to HDMI_SDATA
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to HDMI_LRCK
-set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to HDMI_BCK
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SPDIF
 
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SDRAM_A[*]
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SDRAM_DQ[*]
@@ -390,15 +392,15 @@ set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to HDMI_VS
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to HDMI_SDA
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to HDMI_SCL
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to HDMI_RST
-set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to HDMI_BCK
-set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to HDMI_LRCK
-set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to HDMI_SDATA
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to SPDIF
 
 set_global_assignment -name VERILOG_MACRO "NO_DIRECT_UPLOAD=1"
 set_global_assignment -name VERILOG_MACRO "VGA_8BIT=1"
 set_global_assignment -name VERILOG_MACRO "DUAL_SDRAM=1"
 set_global_assignment -name VERILOG_MACRO "USE_CLOCK_50=1"
 set_global_assignment -name VERILOG_MACRO "USE_QSPI=1"
+set_global_assignment -name VERILOG_MACRO "I2S_AUDIO=1"
+set_global_assignment -name VERILOG_MACRO "SPDIF_AUDIO=1"
 #set_global_assignment -name VERILOG_MACRO "BIG_OSD=1"
 set_global_assignment -name VERILOG_MACRO "USE_HDMI=1"
 
