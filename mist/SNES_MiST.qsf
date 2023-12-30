@@ -301,7 +301,7 @@ set_global_assignment -name DSP_BLOCK_BALANCING "DSP BLOCKS"
 set_global_assignment -name SYSTEMVERILOG_FILE SNES.sv
 set_global_assignment -name QIP_FILE "mist-modules/mist.qip"
 set_global_assignment -name SYSTEMVERILOG_FILE sdram_cl3.sv
-set_global_assignment -name SDC_FILE snes_mist.sdc
+set_global_assignment -name SDC_FILE SNES_MiST.sdc
 set_global_assignment -name VERILOG_FILE hybrid_pwm_sd.v
 set_global_assignment -name QIP_FILE mist/pll.qip
 set_global_assignment -name VHDL_FILE ../bram_no_sld_hub.vhd

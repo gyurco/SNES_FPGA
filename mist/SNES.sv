@@ -139,13 +139,24 @@ localparam bit BIG_OSD = 0;
 `define SEP
 `endif
 
-`ifdef DUAL_SDRAM
-localparam bit EXTRA_CHIPS=1'b1;
+`ifdef BRAM_LEVEL_1
+localparam bit EXTRA_CHIPS_1=1'b1;
 `else
-localparam bit EXTRA_CHIPS=1'b0;
+localparam bit EXTRA_CHIPS_1=1'b0;
+`endif
+
+`ifdef BRAM_LEVEL_2
+localparam bit EXTRA_CHIPS_2=1'b1;
+`else
+localparam bit EXTRA_CHIPS_2=1'b0;
 `endif
 
 assign LED  = ~ioctl_download & ~bk_ena;
+
+// Further macros affecting the core:
+// USE_SIMPLE_SDRAM - use a simple 85MHz SDRAM controller for the cart ROM
+// BRAM_LEVEL_1 - everything but ARAM and WRAM in BRAM
+// BRAM_LEVEL_2 - even ARAM and WRAM in BRAM (only cart ROM in SDRAM) - must define USE_SIMPLE_SDRAM with this!
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -163,7 +174,7 @@ parameter CONF_STR = {
 	"OPQ,Lightgun,Off,Super Scope,Justifier;",
 	"O7,Swap Joysticks,No,Yes;",
 	"OH,Multitap,Disabled,Port2;",
-`ifdef DUAL_SDRAM
+`ifdef BRAM_LEVEL_1
 	"OR,GSU Turbo,Off,On;",
 `endif
 	"T0,Reset;",
@@ -369,7 +380,7 @@ wire        ROM_WE_N;
 wire        ROM_WORD;
 wire [15:0] ROM_D;
 wire [15:0] ROM_Q;
-`ifndef DUAL_SDRAM
+`ifndef USE_SIMPLE_SDRAM
 assign      ROM_Q = (ROM_WORD || ~ROM_ADDR[0]) ? cpu_port0 : { cpu_port0[7:0], cpu_port0[15:8] };
 `endif
 
@@ -446,7 +457,10 @@ reg  [15:0] aram_addr_sd;
 wire        ARAM_CE_N;
 wire        ARAM_OE_N;
 wire        ARAM_WE_N;
-wire  [7:0] ARAM_Q = ARAM_ADDR[0] ? aram_dout[15:8] : aram_dout[7:0];
+wire  [7:0] ARAM_Q;
+`ifndef BRAM_LEVEL_2
+assign ARAM_Q = ARAM_ADDR[0] ? aram_dout[15:8] : aram_dout[7:0];
+`endif
 wire  [7:0] ARAM_D;
 reg  [15:0] aram_din;
 wire [15:0] aram_dout;
@@ -459,6 +473,7 @@ wire        aram_req_reg;
 
 wire        DOT_CLK_CE;
 
+`ifndef BRAM_LEVEL_2
 always @(negedge clk_sys) begin
 
 	wram_rdD <= wram_rd;
@@ -466,7 +481,7 @@ always @(negedge clk_sys) begin
 	if (spc_download) begin
 	end
 	else
-`ifndef DUAL_SDRAM
+`ifndef USE_SIMPLE_SDRAM
 	if ((~cart_download && ~ROM_CE_N /*&& ~ROM_OE_N */&& rom_addr_sd != rom_addr_rw[23:1]) || (ioctl_wr & cart_download)) begin
 		rom_addr_sd <= rom_addr_rw[23:1];
 		cpu_req <= ~cpu_req;
@@ -504,7 +519,7 @@ always @(negedge clk_sys) begin
 //		vram1_addr_sd <= 15'h7fff;
 //		vram2_addr_sd <= 15'h7fff;
 	end else begin
-`ifndef DUAL_SDRAM
+`ifndef BRAM_LEVEL_1
 		bsram_rdD <= bsram_rd;
 		bsram_wrD <= bsram_wr;
 		if ((bsram_rd && BSRAM_ADDR[19:1] != bsram_sd_addr[19:1]) || (~bsram_wrD & bsram_wr) || (~bsram_rdD & bsram_rd)) begin
@@ -531,8 +546,9 @@ always @(negedge clk_sys) begin
 	end
 
 end
+`endif // BRAM_LEVEL_2
 
-`ifdef DUAL_SDRAM
+`ifdef BRAM_LEVEL_1
 
 localparam  BSRAM_BITS = 17; // 1Mbits
 
@@ -551,7 +567,7 @@ dpram #(BSRAM_BITS,8) bsram
 	.q_b(sd_buff_din)
 );
 
-dpram #(15)	vram1
+dpram #(15) vram1
 (
 	.clock(clk_sys),
 	.address_a(VRAM1_ADDR[14:0]),
@@ -571,6 +587,37 @@ dpram #(15) vram2
 
 `endif
 
+`ifdef BRAM_LEVEL_2
+dpram #(17)	wram
+(
+	.clock(clk_sys),
+	.address_a(WRAM_ADDR),
+	.data_a(WRAM_D),
+	.wren_a(~WRAM_CE_N & ~WRAM_WE_N),
+	.q_a(WRAM_Q),
+/*
+	// clear the RAM on loading
+	.address_b(mem_fill_addr[16:0]),
+	.data_b(wram_fill_data),
+	.wren_b(clearing_ram)
+*/
+);
+
+dpram_dif #(16,8,15,16) aram
+(
+	.clock(clk_sys),
+	.address_a(ARAM_ADDR),
+	.data_a(ARAM_D),
+	.wren_a(~ARAM_CE_N & ~ARAM_WE_N),
+	.q_A(ARAM_Q),
+/*
+	// clear the RAM on loading
+	.address_b(spc_download ? addr_download[15:1] : mem_fill_addr[15:1]),
+	.data_b(spc_download ? ioctl_dout : {2{aram_fill_data}}),
+	.wren_b(spc_download ? ioctl_wr : clearing_ram)
+*/
+);
+`else
 sdram_cl3 sdram
 (
 	.init_n(locked),
@@ -598,7 +645,7 @@ sdram_cl3 sdram
 	.cpu_port0(cpu_port0),
 	.cpu_port1(cpu_port1),
 
-`ifndef DUAL_SDRAM
+`ifndef BRAM_LEVEL_1
 	.bsram_addr(bsram_sd_addr),
 //	.bsram_din(bsram_din), // OBC1 doesn't like this
 	.bsram_din(BSRAM_D),
@@ -640,9 +687,11 @@ sdram_cl3 sdram
 //	.aram_we(~ARAM_WE_N)
 	.aram_we(spc_download | aram_wr_last)
 );
+`endif // BRAM_LEVEL_2
+
+`ifdef USE_SIMPLE_SDRAM
 
 `ifdef DUAL_SDRAM
-
 wire locked2;
 wire clk_mem2;
 
@@ -652,11 +701,12 @@ pll_sdram2 pll_sdram2
 	.c0(clk_mem2),
 	.locked(locked2)
 );
-
 assign SDRAM2_CLK = clk_mem2;
+`endif
 
 sdram sdram2
 (
+`ifdef DUAL_SDRAM
 	.SDRAM_DQ(SDRAM2_DQ),
 	.SDRAM_A(SDRAM2_A),
 	.SDRAM_DQML(SDRAM2_DQML),
@@ -667,10 +717,25 @@ sdram sdram2
 	.SDRAM_nCAS(SDRAM2_nCAS),
 	.SDRAM_nRAS(SDRAM2_nRAS),
 	.SDRAM_CKE(SDRAM2_CKE),
+`else
+	.SDRAM_DQ(SDRAM_DQ),
+	.SDRAM_A(SDRAM_A),
+	.SDRAM_DQML(SDRAM_DQML),
+	.SDRAM_DQMH(SDRAM_DQMH),
+	.SDRAM_BA(SDRAM_BA),
+	.SDRAM_nCS(SDRAM_nCS),
+	.SDRAM_nWE(SDRAM_nWE),
+	.SDRAM_nCAS(SDRAM_nCAS),
+	.SDRAM_nRAS(SDRAM_nRAS),
+	.SDRAM_CKE(SDRAM_CKE),
+`endif
 
 	.init(0), //~clock_locked),
+`ifdef DUAL_SDRAM
 	.clk(clk_mem2),
-
+`else
+	.clk(clk_mem),
+`endif
 	.addr(rom_addr_rw),
 	.din(cart_download ? ioctl_dout : ROM_D),
 	.dout(ROM_Q),
@@ -755,6 +820,10 @@ always @(posedge clk_sys) begin
 		//SA1
 		else if (mapper_header == 8'h23 && (rom_type_header == 8'h32 || rom_type_header == 8'h34 || rom_type_header == 8'h35)) begin
 			rom_type[7:4] <= 4'h6;
+		// SPC7110
+		end else if (mapper_header == 8'h3a && (rom_type_header == 8'hf5 || rom_type_header == 8'hf9)) begin
+			rom_type[7:4] <= 4'hD;
+			rom_type[3] <= rom_type_header[3]; // with RTC
 		end
 	end
 end
@@ -765,7 +834,7 @@ wire [16:0] io_addr = ioctl_addr >= 17'h00100 && ioctl_addr < 17'h10100 ? ioctl_
                       ioctl_addr >= 17'h10100 ? {1'b1, ioctl_addr[7:0]} :
                       ioctl_addr[16:0];
 
-main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(EXTRA_CHIPS), .USE_SA1(EXTRA_CHIPS), .USE_GSU(EXTRA_CHIPS), .USE_DLH(1'b1), .USE_SPC7110(1'b0), .USE_BSX(1'b0)) main
+main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(EXTRA_CHIPS_1), .USE_SA1(EXTRA_CHIPS_1), .USE_GSU(EXTRA_CHIPS_1), .USE_DLH(1'b1), .USE_SPC7110(EXTRA_CHIPS_2), .USE_BSX(1'b0)) main
 (
 	.RESET_N(RESET_N),
 
@@ -787,7 +856,7 @@ main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(EXTRA_CHIPS), .USE_SA1(EXTRA_C
 
 	.BSRAM_ADDR(BSRAM_ADDR),
 	.BSRAM_D(BSRAM_D),
-`ifdef DUAL_SDRAM
+`ifdef BRAM_LEVEL_1
 	.BSRAM_Q(BSRAM_Q),
 `else
 	.BSRAM_Q(BSRAM_SD_Q),
@@ -799,7 +868,11 @@ main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(EXTRA_CHIPS), .USE_SA1(EXTRA_C
 
 	.WRAM_ADDR(WRAM_ADDR),
 	.WRAM_D(WRAM_D),
+`ifdef BRAM_LEVEL_2
+	.WRAM_Q(WRAM_Q),
+`else
 	.WRAM_Q(WRAM_SD_Q),
+`endif
 	.WRAM_CE_N(WRAM_CE_N),
 	.WRAM_OE_N(WRAM_OE_N),
 	.WRAM_WE_N(WRAM_WE_N),
@@ -988,7 +1061,7 @@ hybrid_pwm_sd dacr
 i2s i2s (
 	.reset(1'b0),
 	.clk(clk_mem),
-	.clk_rate(32'd128_000_000),
+	.clk_rate(`AUDIO_CLOCK_RATE),
 
 	.sclk(I2S_BCK),
 	.lrclk(I2S_LRCK),
@@ -1004,7 +1077,7 @@ spdif spdif
 (
 	.clk_i(clk_mem),
 	.rst_i(1'b0),
-	.clk_rate_i(32'd128_000_000),
+	.clk_rate_i(`AUDIO_CLOCK_RATE),
 	.spdif_o(SPDIF),
 	.sample_i({audioR, audioL})
 );
@@ -1108,7 +1181,7 @@ reg         bk_ena, bk_load;
 reg         bk_state;
 reg  [11:0] sav_size;
 
-`ifndef DUAL_SDRAM
+`ifndef BRAM_LEVEL_1
 assign      sd_buff_din = sd_buff_addr[0] ? bsram_io_q_save[15:8] : bsram_io_q_save[7:0];
 `endif
 

@@ -403,12 +403,15 @@ set_global_assignment -name VERILOG_MACRO "I2S_AUDIO=1"
 set_global_assignment -name VERILOG_MACRO "SPDIF_AUDIO=1"
 #set_global_assignment -name VERILOG_MACRO "BIG_OSD=1"
 set_global_assignment -name VERILOG_MACRO "USE_HDMI=1"
+set_global_assignment -name VERILOG_MACRO "USE_SIMPLE_SDRAM=1"
+set_global_assignment -name VERILOG_MACRO "BRAM_LEVEL_1=1"
+set_global_assignment -name VERILOG_MACRO "AUDIO_CLOCK_RATE=32'd128_770_000"
 
 set_global_assignment -name SYSTEMVERILOG_FILE SNES.sv
 set_global_assignment -name QIP_FILE "mist-modules/mist.qip"
 set_global_assignment -name QIP_FILE sidi128/pll_sdram.qip
 set_global_assignment -name QIP_FILE sidi128/pll_sdram2.qip
-set_global_assignment -name SDC_FILE snes_sidi128.sdc
+set_global_assignment -name SDC_FILE SNES_SiDi128.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE sdram_cl3.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/sdram.sv
 set_global_assignment -name VERILOG_FILE hybrid_pwm_sd.v
