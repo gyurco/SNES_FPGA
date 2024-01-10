@@ -5,6 +5,9 @@ use IEEE.NUMERIC_STD.ALL;
 library work;
 
 entity CX4 is
+	generic(
+		HAVE_MLAB : in boolean := true
+	);
 	port(
 		CLK			: in std_logic;
 		CE				: in std_logic;
@@ -149,7 +152,6 @@ architecture rtl of CX4 is
 	signal DATA_ROM_Q : std_logic_vector(23 downto 0);
 	
 	signal BUS_RD_CNT : unsigned(1 downto 0);
-	
 	impure function BitToInt (v : in std_logic) return integer is
         variable ret : integer range 0 to 1;
     begin   
@@ -160,6 +162,10 @@ architecture rtl of CX4 is
 			end if;
         return ret;
     end function; 
+
+	type cache_ram_t is array (0 to (2**9-1)) of std_logic_vector(7 downto 0);
+	signal cache_l: cache_ram_t;
+	signal cache_h: cache_ram_t;
 	
 begin
 
@@ -1277,7 +1283,24 @@ begin
 	CACHE_ADDR_WR <= CACHE_BANK & CACHE_ADDR;
 	CACHE_WE <= '1' when CACHE_RUN = '1' and EN = '1' and CACHE_WAIT_CNT = unsigned(WS1) else '0';
 	CACHE_DI <= BUS_DI;
-	
+
+	no_mlab: if not HAVE_MLAB generate
+	process(CLK)
+	begin
+		if rising_edge(CLK) then
+			if CACHE_WE='1' and CACHE_ADDR_WR(0)='0' then
+				cache_l(to_integer(unsigned(CACHE_ADDR_WR(9 downto 1)))) <= CACHE_DI;
+			end if;
+			if CACHE_WE='1' and CACHE_ADDR_WR(0)='1' then
+				cache_h(to_integer(unsigned(CACHE_ADDR_WR(9 downto 1)))) <= CACHE_DI;
+			end if;
+		end if;
+	end process;
+	CACHE_Q_L <= cache_l(to_integer(unsigned(CACHE_ADDR_RD)));
+	CACHE_Q_H <= cache_h(to_integer(unsigned(CACHE_ADDR_RD)));
+	end generate;
+
+	mlab: if HAVE_MLAB generate
 	CACHEL : entity work.cx4cache
 	port map(
 		clock			=> CLK,
@@ -1297,5 +1320,6 @@ begin
 		rdaddress	=> CACHE_ADDR_RD,
 		q				=> CACHE_Q_H
 	);
-	
+	end generate;
+
 end rtl;

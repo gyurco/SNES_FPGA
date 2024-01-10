@@ -7,6 +7,9 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.STD_LOGIC_TEXTIO.all;
 
 entity CX4Map is
+	generic(
+		HAVE_MLAB : in boolean := true
+	);
 	port(
 		MCLK			: in std_logic;
 		RST_N			: in std_logic;
@@ -75,6 +78,9 @@ begin
 	);
 
 	CX4 : entity work.CX4
+	generic map(
+		HAVE_MLAB => HAVE_MLAB
+	)
 	port map(
 		CLK			=> MCLK,
 		CE				=> CX4_CE,
