@@ -149,6 +149,7 @@ parameter USE_BSX = 1'b1;
 parameter USE_SUFAMI = 1'b1;
 parameter USE_MSU = 1'b1;
 parameter USE_SS = 1'b1;
+parameter HAVE_MLAB = "TRUE";
 
 wire [23:0] CA;
 wire        CPURD_N;
@@ -428,7 +429,7 @@ wire        CX4_BSRAM_WE_N;
 generate
 if (USE_CX4 == 1'b1) begin
 
-CX4Map CX4Map
+CX4Map #(.HAVE_MLAB(HAVE_MLAB)) CX4Map
 (
 	.mclk(MCLK),
 	.rst_n(RESET_N),

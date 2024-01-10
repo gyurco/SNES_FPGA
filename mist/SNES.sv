@@ -824,6 +824,9 @@ always @(posedge clk_sys) begin
 		end else if (mapper_header == 8'h3a && (rom_type_header == 8'hf5 || rom_type_header == 8'hf9)) begin
 			rom_type[7:4] <= 4'hD;
 			rom_type[3] <= rom_type_header[3]; // with RTC
+		//CX4
+		end else if (mapper_header == 8'h20 && rom_type_header == 8'hf3) begin
+			rom_type[7:4] <= 4'h4;
 		end
 	end
 end
@@ -834,7 +837,7 @@ wire [16:0] io_addr = ioctl_addr >= 17'h00100 && ioctl_addr < 17'h10100 ? ioctl_
                       ioctl_addr >= 17'h10100 ? {1'b1, ioctl_addr[7:0]} :
                       ioctl_addr[16:0];
 
-main #(.USE_DSPn(1'b1), .USE_CX4(1'b0), .USE_SDD1(EXTRA_CHIPS_1), .USE_SA1(EXTRA_CHIPS_1), .USE_GSU(EXTRA_CHIPS_1), .USE_DLH(1'b1), .USE_SPC7110(EXTRA_CHIPS_2), .USE_BSX(1'b0)) main
+main #(.USE_DSPn(1'b1), .USE_CX4(EXTRA_CHIPS_2), .USE_SDD1(EXTRA_CHIPS_1), .USE_SA1(EXTRA_CHIPS_1), .USE_GSU(EXTRA_CHIPS_1), .USE_DLH(1'b1), .USE_SPC7110(EXTRA_CHIPS_2), .USE_BSX(1'b0), .HAVE_MLAB("FALSE")) main
 (
 	.RESET_N(RESET_N),
 
