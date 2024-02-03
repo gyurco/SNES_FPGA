@@ -93,6 +93,12 @@ module SNES_MIST_TOP
 	output        I2S_LRCK,
 	output        I2S_DATA,
 `endif
+`ifdef I2S_AUDIO_HDMI
+	output        HDMI_MCLK,
+	output        HDMI_BCK,
+	output        HDMI_LRCK,
+	output        HDMI_SDATA,
+`endif
 `ifdef SPDIF_AUDIO
 	output        SPDIF,
 `endif
@@ -139,13 +145,13 @@ localparam bit BIG_OSD = 0;
 `define SEP
 `endif
 
-`ifdef BRAM_LEVEL_1
+`ifdef EXTRA_CHIPS_1
 localparam bit EXTRA_CHIPS_1=1'b1;
 `else
 localparam bit EXTRA_CHIPS_1=1'b0;
 `endif
 
-`ifdef BRAM_LEVEL_2
+`ifdef EXTRA_CHIPS_2
 localparam bit EXTRA_CHIPS_2=1'b1;
 `else
 localparam bit EXTRA_CHIPS_2=1'b0;
@@ -157,6 +163,8 @@ assign LED  = ~ioctl_download & ~bk_ena;
 // USE_SIMPLE_SDRAM - use a simple 85MHz SDRAM controller for the cart ROM
 // BRAM_LEVEL_1 - everything but ARAM and WRAM in BRAM
 // BRAM_LEVEL_2 - even ARAM and WRAM in BRAM (only cart ROM in SDRAM) - must define USE_SIMPLE_SDRAM with this!
+// EXTRA_CHIPS_1 - SDD1, SA1, GSU
+// EXTRA_CHIPS_2 - CX4, SPC7110
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -1073,6 +1081,14 @@ i2s i2s (
 	.left_chan(audioR),
 	.right_chan(audioL)
 );
+`ifdef I2S_AUDIO_HDMI
+assign HDMI_MCLK = 0;
+always @(posedge clk_mem) begin
+	HDMI_BCK <= I2S_BCK;
+	HDMI_LRCK <= I2S_LRCK;
+	HDMI_SDATA <= I2S_DATA;
+end
+`endif
 `endif
 
 `ifdef SPDIF_AUDIO
