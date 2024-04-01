@@ -110,7 +110,7 @@ module pll_sdram (
 		altpll_component.clk0_divide_by = 40,
 		altpll_component.clk0_duty_cycle = 50,
 		altpll_component.clk0_multiply_by = 103,
-		altpll_component.clk0_phase_shift = "-1214",
+		altpll_component.clk0_phase_shift = "-583",
 		altpll_component.clk1_divide_by = 40,
 		altpll_component.clk1_duty_cycle = 50,
 		altpll_component.clk1_multiply_by = 103,
@@ -255,7 +255,7 @@ endmodule
 // Retrieval info: PRIVATE: OUTPUT_FREQ_UNIT3 STRING "MHz"
 // Retrieval info: PRIVATE: PHASE_RECONFIG_FEATURE_ENABLED STRING "1"
 // Retrieval info: PRIVATE: PHASE_RECONFIG_INPUTS_CHECK STRING "0"
-// Retrieval info: PRIVATE: PHASE_SHIFT0 STRING "-1.21359200"
+// Retrieval info: PRIVATE: PHASE_SHIFT0 STRING "-0.58252400"
 // Retrieval info: PRIVATE: PHASE_SHIFT1 STRING "0.00000000"
 // Retrieval info: PRIVATE: PHASE_SHIFT2 STRING "0.00000000"
 // Retrieval info: PRIVATE: PHASE_SHIFT3 STRING "0.00000000"
@@ -307,7 +307,7 @@ endmodule
 // Retrieval info: CONSTANT: CLK0_DIVIDE_BY NUMERIC "40"
 // Retrieval info: CONSTANT: CLK0_DUTY_CYCLE NUMERIC "50"
 // Retrieval info: CONSTANT: CLK0_MULTIPLY_BY NUMERIC "103"
-// Retrieval info: CONSTANT: CLK0_PHASE_SHIFT STRING "-1214"
+// Retrieval info: CONSTANT: CLK0_PHASE_SHIFT STRING "-583"
 // Retrieval info: CONSTANT: CLK1_DIVIDE_BY NUMERIC "40"
 // Retrieval info: CONSTANT: CLK1_DUTY_CYCLE NUMERIC "50"
 // Retrieval info: CONSTANT: CLK1_MULTIPLY_BY NUMERIC "103"
