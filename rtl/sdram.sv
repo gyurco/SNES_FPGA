@@ -241,7 +241,7 @@ module sdram
 			endcase
 		end
 	end
-	
+
 	always @(posedge clk) begin
 		state[1] <= state[0];
 		state[2] <= state[1];
