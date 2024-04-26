@@ -161,8 +161,9 @@ assign LED  = ~ioctl_download & ~bk_ena;
 
 // Further macros affecting the core:
 // USE_SIMPLE_SDRAM - use a simple 85MHz SDRAM controller for the cart ROM
-// BRAM_LEVEL_1 - everything but ARAM and WRAM in BRAM
-// BRAM_LEVEL_2 - even ARAM and WRAM in BRAM (only cart ROM in SDRAM) - must define USE_SIMPLE_SDRAM with this!
+// BRAM_LEVEL_1 - BSRAM and VRAM in BRAM
+// BRAM_WRAM    - WRAM in BRAM (only cart ROM in SDRAM)
+// BRAM_ARAM    - ARAM in BRAM
 // EXTRA_CHIPS_1 - SDD1, SA1, GSU
 // EXTRA_CHIPS_2 - CX4, SPC7110
 
@@ -466,7 +467,7 @@ wire        ARAM_CE_N;
 wire        ARAM_OE_N;
 wire        ARAM_WE_N;
 wire  [7:0] ARAM_Q;
-`ifndef BRAM_LEVEL_2
+`ifndef BRAM_ARAM
 assign ARAM_Q = ARAM_ADDR[0] ? aram_dout[15:8] : aram_dout[7:0];
 `endif
 wire  [7:0] ARAM_D;
@@ -481,15 +482,14 @@ wire        aram_req_reg;
 
 wire        DOT_CLK_CE;
 
-`ifndef BRAM_LEVEL_2
 always @(negedge clk_sys) begin
 
 	wram_rdD <= wram_rd;
 	wram_wrD <= wram_wr;
 	if (spc_download) begin
 	end
-	else
 `ifndef USE_SIMPLE_SDRAM
+	else
 	if ((~cart_download && ~ROM_CE_N /*&& ~ROM_OE_N */&& rom_addr_sd != rom_addr_rw[23:1]) || (ioctl_wr & cart_download)) begin
 		rom_addr_sd <= rom_addr_rw[23:1];
 		cpu_req <= ~cpu_req;
@@ -499,8 +499,9 @@ always @(negedge clk_sys) begin
 		cpu_ds <= 2'b11;
 		cpu_port <= 0;
 	end
-	else
 `endif
+`ifndef BRAM_WRAM
+	else
 	if ((wram_rd && WRAM_ADDR[16:1] != wram_addr_sd[16:1]) || (~wram_wrD & wram_wr) || (~wram_rdD & wram_rd)) begin
 		wram_addr_sd <= WRAM_ADDR;
 		cpu_req <= ~cpu_req;
@@ -510,7 +511,9 @@ always @(negedge clk_sys) begin
 		cpu_ds <= {WRAM_ADDR[0], ~WRAM_ADDR[0]};
 		cpu_port <= 1;
 	end
+`endif // BRAM_WRAM
 
+`ifndef BRAM_ARAM
 	aram_wr_last <= aram_wr;
 	aram_rd_last <= aram_rd;
 	if (spc_download) begin
@@ -522,6 +525,7 @@ always @(negedge clk_sys) begin
 		aram_addr_sd <= ARAM_ADDR;
 		aram_din <= {ARAM_D, ARAM_D};
 	end
+`endif // BRAM_ARAM
 
 	if (~RESET_N) begin
 //		vram1_addr_sd <= 15'h7fff;
@@ -549,12 +553,11 @@ always @(negedge clk_sys) begin
 			vram2_din <= VRAM2_D;
 			vram2_req <= ~vram2_req;
 		end
-`endif
+`endif // BRAM_LEVEL_1
 
 	end
 
 end
-`endif // BRAM_LEVEL_2
 
 `ifdef BRAM_LEVEL_1
 
@@ -593,9 +596,9 @@ dpram #(15) vram2
 	.q_a(VRAM2_Q)
 );
 
-`endif
+`endif // BRAM_LEVEL_1
 
-`ifdef BRAM_LEVEL_2
+`ifdef BRAM_WRAM
 dpram #(17)	wram
 (
 	.clock(clk_sys),
@@ -610,7 +613,9 @@ dpram #(17)	wram
 	.wren_b(clearing_ram)
 */
 );
+`endif // BRAM_WRAM
 
+`ifdef BRAM_ARAM
 dpram_dif #(16,8,15,16) aram
 (
 	.clock(clk_sys),
@@ -625,7 +630,19 @@ dpram_dif #(16,8,15,16) aram
 	.wren_b(spc_download ? ioctl_wr : clearing_ram)
 */
 );
-`else
+`endif // BRAM_ARAM
+
+`ifndef BRAM_LEVEL_1
+`define USE_MULTI_SDRAM
+`endif
+`ifndef BRAM_WRAM
+`define USE_MULTI_SDRAM
+`endif
+`ifndef BRAM_ARAM
+`define USE_MULTI_SDRAM
+`endif
+
+`ifdef USE_MULTI_SDRAM
 sdram_cl3 sdram
 (
 	.init_n(locked),
@@ -643,6 +660,7 @@ sdram_cl3 sdram
 	.SDRAM_nRAS(SDRAM_nRAS),
 	.SDRAM_CKE(SDRAM_CKE),
 
+`ifndef BRAM_WRAM
 	.cpu_addr(cpu_addr_sd),
 	.cpu_din(cpu_din),
 	.cpu_req(cpu_req),
@@ -652,6 +670,7 @@ sdram_cl3 sdram
 	.cpu_port(cpu_port),
 	.cpu_port0(cpu_port0),
 	.cpu_port1(cpu_port1),
+`endif
 
 `ifndef BRAM_LEVEL_1
 	.bsram_addr(bsram_sd_addr),
@@ -685,6 +704,7 @@ sdram_cl3 sdram
 	.vram2_we(~vram2_we_nD),
 `endif
 
+`ifndef BRAM_ARAM
 	.aram_16(spc_download),
 	.aram_addr(aram_addr_sd),
 	.aram_din(aram_din),
@@ -694,8 +714,9 @@ sdram_cl3 sdram
 	.aram_req_ack(),
 //	.aram_we(~ARAM_WE_N)
 	.aram_we(spc_download | aram_wr_last)
+`endif // BRAM_ARAM
 );
-`endif // BRAM_LEVEL_2
+`endif
 
 `ifdef USE_SIMPLE_SDRAM
 
@@ -738,10 +759,11 @@ sdram sdram2
 	.SDRAM_CKE(SDRAM_CKE),
 `endif
 
-	.init(0), //~clock_locked),
 `ifdef DUAL_SDRAM
+	.init_n(locked2),
 	.clk(clk_mem2),
 `else
+	.init_n(locked),
 	.clk(clk_mem),
 `endif
 	.addr(rom_addr_rw),
@@ -879,7 +901,7 @@ main #(.USE_DSPn(1'b1), .USE_CX4(EXTRA_CHIPS_2), .USE_SDD1(EXTRA_CHIPS_1), .USE_
 
 	.WRAM_ADDR(WRAM_ADDR),
 	.WRAM_D(WRAM_D),
-`ifdef BRAM_LEVEL_2
+`ifdef BRAM_WRAM
 	.WRAM_Q(WRAM_Q),
 `else
 	.WRAM_Q(WRAM_SD_Q),

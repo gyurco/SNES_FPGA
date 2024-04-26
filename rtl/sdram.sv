@@ -35,7 +35,7 @@ module sdram
 	output            SDRAM_CKE,
 
 	// cpu/chipset interface
-	input             init,			// init signal after FPGA config to initialize RAM
+	input             init_n,		// init signal after FPGA config to initialize RAM
 	input             clk,			// sdram is accessed at up to 128MHz
 
 	input      [24:0] addr,
@@ -51,7 +51,7 @@ assign SDRAM_nCS = 0;
 assign SDRAM_CKE = 1;
 assign {SDRAM_DQMH,SDRAM_DQML} = SDRAM_A[12:11];
 
-localparam RASCAS_DELAY   = 3'd1; // tRCD=20ns -> 2 cycles@85MHz
+localparam RASCAS_DELAY   = 3'd2; // tRCD=20ns -> 2 cycles@85MHz
 localparam BURST_LENGTH   = 3'd0; // 0=1, 1=2, 2=4, 3=8, 7=full page
 localparam ACCESS_TYPE    = 1'd0; // 0=sequential, 1=interleaved
 localparam CAS_LATENCY    = 3'd2; // 2/3 allowed
@@ -128,14 +128,13 @@ localparam MODE_LDM    = 2'b10;
 localparam MODE_PRE    = 2'b11;
 
 // initialization 
-reg [1:0] mode;
+reg [1:0] mode = MODE_RESET;
 reg [4:0] reset = '1;
-always @(posedge clk) begin
-	reg init_old=0;
-	init_old <= init;
-
-	if(init_old & ~init) reset <= '1;
-	else if(state == STATE_LAST) begin
+always @(posedge clk, negedge init_n) begin
+	if (!init_n) begin
+		reset <= '1;
+		mode <= MODE_RESET;
+	end else if(state == STATE_LAST) begin
 		if(reset != 0) begin
 			reset <= reset - 5'd1;
 			if(reset == 14)     mode <= MODE_PRE;
@@ -170,6 +169,7 @@ always @(posedge clk) begin
 		// init
 		{2'bXX,    MODE_LDM, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_LOAD_MODE;
 		{2'bXX,    MODE_PRE, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_PRECHARGE;
+		{2'bXX,  MODE_RESET, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_AUTO_REFRESH;
 
 		                          default: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_NOP;
 	endcase
