@@ -128,7 +128,7 @@ module pll_sdram (
 		altpll_component.intended_device_family = "Cyclone 10 LP",
 		altpll_component.lpm_hint = "CBX_MODULE_PREFIX=pll_sdram",
 		altpll_component.lpm_type = "altpll",
-		altpll_component.operation_mode = "NORMAL",
+		altpll_component.operation_mode = "ZERO_DELAY_BUFFER",
 		altpll_component.pll_type = "AUTO",
 		altpll_component.port_activeclock = "PORT_UNUSED",
 		altpll_component.port_areset = "PORT_UNUSED",
@@ -240,7 +240,7 @@ endmodule
 // Retrieval info: PRIVATE: MULT_FACTOR1 NUMERIC "103"
 // Retrieval info: PRIVATE: MULT_FACTOR2 NUMERIC "103"
 // Retrieval info: PRIVATE: MULT_FACTOR3 NUMERIC "103"
-// Retrieval info: PRIVATE: NORMAL_MODE_RADIO STRING "1"
+// Retrieval info: PRIVATE: NORMAL_MODE_RADIO STRING "0"
 // Retrieval info: PRIVATE: OUTPUT_FREQ0 STRING "21.47000000"
 // Retrieval info: PRIVATE: OUTPUT_FREQ1 STRING "100.00000000"
 // Retrieval info: PRIVATE: OUTPUT_FREQ2 STRING "100.00000000"
@@ -301,7 +301,7 @@ endmodule
 // Retrieval info: PRIVATE: USE_CLKENA2 STRING "0"
 // Retrieval info: PRIVATE: USE_CLKENA3 STRING "0"
 // Retrieval info: PRIVATE: USE_MIL_SPEED_GRADE NUMERIC "0"
-// Retrieval info: PRIVATE: ZERO_DELAY_RADIO STRING "0"
+// Retrieval info: PRIVATE: ZERO_DELAY_RADIO STRING "1"
 // Retrieval info: LIBRARY: altera_mf altera_mf.altera_mf_components.all
 // Retrieval info: CONSTANT: BANDWIDTH_TYPE STRING "AUTO"
 // Retrieval info: CONSTANT: CLK0_DIVIDE_BY NUMERIC "40"
@@ -324,7 +324,7 @@ endmodule
 // Retrieval info: CONSTANT: INCLK0_INPUT_FREQUENCY NUMERIC "20000"
 // Retrieval info: CONSTANT: INTENDED_DEVICE_FAMILY STRING "Cyclone 10 LP"
 // Retrieval info: CONSTANT: LPM_TYPE STRING "altpll"
-// Retrieval info: CONSTANT: OPERATION_MODE STRING "NORMAL"
+// Retrieval info: CONSTANT: OPERATION_MODE STRING "ZERO_DELAY_BUFFER"
 // Retrieval info: CONSTANT: PLL_TYPE STRING "AUTO"
 // Retrieval info: CONSTANT: PORT_ACTIVECLOCK STRING "PORT_UNUSED"
 // Retrieval info: CONSTANT: PORT_ARESET STRING "PORT_UNUSED"
