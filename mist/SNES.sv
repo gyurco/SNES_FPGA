@@ -241,8 +241,8 @@ always @(posedge clk_sys) begin
 end
 
 //////////////////   MiST I/O   ///////////////////
-wire  [9:0] conf_str_addr;
-wire  [7:0] conf_str_char;
+wire [10:0] conf_str_addr;
+reg   [7:0] conf_str_char;
 
 wire [31:0] joystick0;
 wire [31:0] joystick1;
@@ -356,10 +356,10 @@ user_io #(
 wire [24:0] ps2_mouse = { mouse_strobe_level, mouse_y[7:0], mouse_x[7:0], mouse_flags };
 reg         mouse_strobe_level;
 
-always @(posedge clk_sys) begin
+always @(posedge SPI_SCK)
 	conf_str_char <= CONF_STR[(($size(CONF_STR)>>3) - conf_str_addr - 1)<<3 +:8];
-	if (mouse_strobe) mouse_strobe_level <= ~mouse_strobe_level;
-end
+
+always @(posedge clk_sys) if (mouse_strobe) mouse_strobe_level <= ~mouse_strobe_level;
 
 data_io #(.ROM_DIRECT_UPLOAD(DIRECT_UPLOAD), .DOUT_16(1'b1)) data_io
 (
