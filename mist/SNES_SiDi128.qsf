@@ -436,7 +436,7 @@ set_global_assignment -name VERILOG_MACRO "BIG_OSD=1"
 set_global_assignment -name VERILOG_MACRO "USE_HDMI=1"
 set_global_assignment -name VERILOG_MACRO "USE_SIMPLE_SDRAM=1"
 set_global_assignment -name VERILOG_MACRO "BRAM_LEVEL_1=1"
-set_global_assignment -name VERILOG_MACRO "BRAM_WRAM=1"
+set_global_assignment -name VERILOG_MACRO "BSRAM_BITS=18"
 set_global_assignment -name VERILOG_MACRO "EXTRA_CHIPS_1=1"
 set_global_assignment -name VERILOG_MACRO "EXTRA_CHIPS_2=1"
 set_global_assignment -name VERILOG_MACRO "AUDIO_CLOCK_RATE=32'd128_770_000"
@@ -469,7 +469,7 @@ set_global_assignment -name QIP_FILE ../rtl/SPC700/SPC700.qip
 set_global_assignment -name SIGNALTAP_FILE output_files/gsu2.stp
 set_global_assignment -name SIGNALTAP_FILE output_files/uio.stp
 set_global_assignment -name SIGNALTAP_FILE output_files/sa1.stp
-set_global_assignment -name OPTIMIZATION_MODE "HIGH PERFORMANCE EFFORT"
+set_global_assignment -name OPTIMIZATION_MODE "AGGRESSIVE PERFORMANCE"
 set_global_assignment -name PERIPHERY_TO_CORE_PLACEMENT_AND_ROUTING_OPTIMIZATION AUTO
 set_global_assignment -name SIGNALTAP_FILE output_files/qspi.stp
 set_global_assignment -name AUTO_RAM_TO_LCELL_CONVERSION ON

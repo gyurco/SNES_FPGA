@@ -160,9 +160,9 @@ localparam bit EXTRA_CHIPS_2=1'b0;
 assign LED  = ~ioctl_download & ~bk_ena;
 
 // Further macros affecting the core:
-// USE_SIMPLE_SDRAM - use a simple 85MHz SDRAM controller for the cart ROM
+// USE_SIMPLE_SDRAM - use a simple 85MHz SDRAM controller for the cart ROM/WSRAM
 // BRAM_LEVEL_1 - BSRAM and VRAM in BRAM
-// BRAM_WRAM    - WRAM in BRAM (only cart ROM in SDRAM)
+// BSRAM_BITS - BSRAM size in BRAM (18 - 256kB)
 // BRAM_ARAM    - ARAM in BRAM
 // EXTRA_CHIPS_1 - SDD1, SA1, GSU
 // EXTRA_CHIPS_2 - CX4, SPC7110
@@ -294,9 +294,6 @@ wire        i2c_end;
 
 user_io #(
 	.ROM_DIRECT_UPLOAD(DIRECT_UPLOAD),
-`ifdef DUAL_SDRAM
-	.STRLEN($size(CONF_STR)>>3),
-`endif
 	.FEATURES(32'h0 | (BIG_OSD << 13) | (HDMI << 14))
 ) user_io (
 	.clk_sys(clk_sys),
@@ -305,12 +302,8 @@ user_io #(
 	.SPI_CLK(SPI_SCK),
 	.SPI_MOSI(SPI_DI),
 	.SPI_MISO(SPI_DO),
-`ifdef DUAL_SDRAM
-	.conf_str(CONF_STR),
-`else
 	.conf_addr(conf_str_addr),
 	.conf_chr(conf_str_char),
-`endif
 
 `ifdef USE_HDMI
 	.i2c_start      (i2c_start      ),
@@ -415,8 +408,10 @@ wire        WRAM_CE_N;
 wire        WRAM_OE_N;
 wire        WRAM_RD_N;
 wire        WRAM_WE_N;
-wire  [7:0] WRAM_SD_Q = WRAM_ADDR[0] ? cpu_port1[15:8] : cpu_port1[7:0];
 wire  [7:0] WRAM_Q;
+`ifndef USE_SIMPLE_SDRAM
+assign      WRAM_Q = WRAM_ADDR[0] ? cpu_port1[15:8] : cpu_port1[7:0];
+`endif
 wire  [7:0] WRAM_D;
 wire        wram_rd = ~WRAM_CE_N & ~WRAM_RD_N;
 reg         wram_rdD;
@@ -481,6 +476,9 @@ wire        aram_req;
 wire        aram_req_reg;
 
 wire        DOT_CLK_CE;
+wire        SNES_SYSCLKF_CE;
+wire        SNES_SYSCLKR_CE;
+wire        SNES_REFRESH;
 
 always @(negedge clk_sys) begin
 
@@ -499,8 +497,6 @@ always @(negedge clk_sys) begin
 		cpu_ds <= 2'b11;
 		cpu_port <= 0;
 	end
-`endif
-`ifndef BRAM_WRAM
 	else
 	if ((wram_rd && WRAM_ADDR[16:1] != wram_addr_sd[16:1]) || (~wram_wrD & wram_wr) || (~wram_rdD & wram_rd)) begin
 		wram_addr_sd <= WRAM_ADDR;
@@ -511,7 +507,7 @@ always @(negedge clk_sys) begin
 		cpu_ds <= {WRAM_ADDR[0], ~WRAM_ADDR[0]};
 		cpu_port <= 1;
 	end
-`endif // BRAM_WRAM
+`endif // USE_SIMPLE_SDRAM
 
 `ifndef BRAM_ARAM
 	aram_wr_last <= aram_wr;
@@ -561,7 +557,7 @@ end
 
 `ifdef BRAM_LEVEL_1
 
-localparam  BSRAM_BITS = 17; // 1Mbits
+localparam  BSRAM_BITS = `BSRAM_BITS;
 
 dpram #(BSRAM_BITS,8) bsram 
 (
@@ -598,23 +594,6 @@ dpram #(15) vram2
 
 `endif // BRAM_LEVEL_1
 
-`ifdef BRAM_WRAM
-dpram #(17)	wram
-(
-	.clock(clk_sys),
-	.address_a(WRAM_ADDR),
-	.data_a(WRAM_D),
-	.wren_a(~WRAM_CE_N & ~WRAM_WE_N),
-	.q_a(WRAM_Q),
-/*
-	// clear the RAM on loading
-	.address_b(mem_fill_addr[16:0]),
-	.data_b(wram_fill_data),
-	.wren_b(clearing_ram)
-*/
-);
-`endif // BRAM_WRAM
-
 `ifdef BRAM_ARAM
 dpram_dif #(16,8,15,16) aram
 (
@@ -633,9 +612,6 @@ dpram_dif #(16,8,15,16) aram
 `endif // BRAM_ARAM
 
 `ifndef BRAM_LEVEL_1
-`define USE_MULTI_SDRAM
-`endif
-`ifndef BRAM_WRAM
 `define USE_MULTI_SDRAM
 `endif
 `ifndef BRAM_ARAM
@@ -660,7 +636,7 @@ sdram_cl3 sdram
 	.SDRAM_nRAS(SDRAM_nRAS),
 	.SDRAM_CKE(SDRAM_CKE),
 
-`ifndef BRAM_WRAM
+`ifndef USE_SIMPLE_SDRAM
 	.cpu_addr(cpu_addr_sd),
 	.cpu_din(cpu_din),
 	.cpu_req(cpu_req),
@@ -720,7 +696,7 @@ sdram_cl3 sdram
 
 `ifdef USE_SIMPLE_SDRAM
 
-`ifdef DUAL_SDRAM
+`ifdef USE_MULTI_SDRAM
 wire locked2;
 wire clk_mem2;
 
@@ -733,9 +709,15 @@ pll_sdram2 pll_sdram2
 assign SDRAM2_CLK = clk_mem2;
 `endif
 
+reg READ_PULSE;
+always @(posedge clk_sys)
+        READ_PULSE <= SNES_SYSCLKR_CE;
+
 sdram sdram2
 (
-`ifdef DUAL_SDRAM
+`ifdef USE_MULTI_SDRAM
+	.init(~locked2),
+	.clk(clk_mem2),
 	.SDRAM_DQ(SDRAM2_DQ),
 	.SDRAM_A(SDRAM2_A),
 	.SDRAM_DQML(SDRAM2_DQML),
@@ -747,6 +729,8 @@ sdram sdram2
 	.SDRAM_nRAS(SDRAM2_nRAS),
 	.SDRAM_CKE(SDRAM2_CKE),
 `else
+	.init(~locked),
+	.clk(clk_mem),
 	.SDRAM_DQ(SDRAM_DQ),
 	.SDRAM_A(SDRAM_A),
 	.SDRAM_DQML(SDRAM_DQML),
@@ -759,28 +743,20 @@ sdram sdram2
 	.SDRAM_CKE(SDRAM_CKE),
 `endif
 
-`ifdef DUAL_SDRAM
-	.init(~locked2),
-	.clk(clk_mem2),
-`else
-	.init(~locked),
-	.clk(clk_mem),
-`endif
 	.addr0(rom_addr_rw),
 	.din0(cart_download ? ioctl_dout : ROM_D),
 	.dout0(ROM_Q),
 	.rd0(~cart_download & (RESET_N ? ~ROM_OE_N : RFSH)),
 	.wr0(cart_download ? ioctl_wr : ~ROM_WE_N),
-	.word0(cart_download | ROM_WORD)
-`ifndef BRAM_WRAM
-	,
+	.word0(cart_download | ROM_WORD),
+
 	.addr1(clearing_ram ? {7'b0000000,mem_fill_addr} : {7'b0000000,WRAM_ADDR}),
 	.din1(clearing_ram ? {8'h00,wram_fill_data} : {8'h00,WRAM_D}),
-	.dout1(sdr_dout1),
+	.dout1(WRAM_Q),
 	.rd1(clearing_ram ? 1'b0 : ~WRAM_CE_N & ~WRAM_OE_N & READ_PULSE),
 	.wr1(clearing_ram ? mem_fill_we : ~WRAM_CE_N & ~WRAM_WE_N & SNES_SYSCLKF_CE),
+	.rfs1(clearing_ram ? 1'b0 : SNES_REFRESH),
 	.word1(0)
-`endif
 );
 
 `endif
@@ -876,7 +852,7 @@ wire [16:0] io_addr = ioctl_addr >= 17'h00100 && ioctl_addr < 17'h10100 ? ioctl_
                       ioctl_addr >= 17'h10100 ? {1'b1, ioctl_addr[7:0]} :
                       ioctl_addr[16:0];
 
-main #(.USE_DSPn(1'b1), .USE_CX4(EXTRA_CHIPS_2), .USE_SDD1(EXTRA_CHIPS_1), .USE_SA1(EXTRA_CHIPS_1), .USE_GSU(EXTRA_CHIPS_1), .USE_DLH(1'b1), .USE_SPC7110(EXTRA_CHIPS_2), .USE_BSX(1'b0), .HAVE_MLAB("FALSE")) main
+main #(.USE_DSPn(1'b1), .USE_CX4(EXTRA_CHIPS_2), .USE_SDD1(EXTRA_CHIPS_1), .USE_SA1(EXTRA_CHIPS_1), .USE_GSU(EXTRA_CHIPS_1), .USE_DLH(1'b1), .USE_SPC7110(EXTRA_CHIPS_2), .USE_BSX(1'b0), .USE_SS(1'b0), .HAVE_MLAB("FALSE")) main
 (
 	.RESET_N(RESET_N),
 
@@ -910,11 +886,7 @@ main #(.USE_DSPn(1'b1), .USE_CX4(EXTRA_CHIPS_2), .USE_SDD1(EXTRA_CHIPS_1), .USE_
 
 	.WRAM_ADDR(WRAM_ADDR),
 	.WRAM_D(WRAM_D),
-`ifdef BRAM_WRAM
 	.WRAM_Q(WRAM_Q),
-`else
-	.WRAM_Q(WRAM_SD_Q),
-`endif
 	.WRAM_CE_N(WRAM_CE_N),
 	.WRAM_OE_N(WRAM_OE_N),
 	.WRAM_WE_N(WRAM_WE_N),
@@ -956,6 +928,9 @@ main #(.USE_DSPn(1'b1), .USE_CX4(EXTRA_CHIPS_2), .USE_SDD1(EXTRA_CHIPS_1), .USE_
 	.VSYNC(VSYNC),
 
 	.DOT_CLK_CE(DOT_CLK_CE),
+	.SYSCLKR_CE(SNES_SYSCLKR_CE),
+	.SYSCLKF_CE(SNES_SYSCLKF_CE),
+	.REFRESH(SNES_REFRESH),
 
 	.JOY1_DI(JOY1_DO),
 	.JOY2_DI(|GUN_MODE ? LG_DO : JOY2_DO),
