@@ -15,6 +15,7 @@ module main (
 	output            REFRESH,
 
 	output reg [23:0] ROM_ADDR,
+	output reg [23:0] ROM_ADDR_EARLY,
 	output reg [15:0] ROM_D,
 	input      [15:0] ROM_Q,
 	output reg        ROM_CE_N,
@@ -337,6 +338,7 @@ assign      BSRAM_RD_N = CPURD_CYC_N;
 wire  [7:0] DLH_DO;
 wire        DLH_IRQ_N;
 wire [23:0] DLH_ROM_ADDR;
+wire [23:0] DLH_ROM_ADDR_EARLY;
 wire        DLH_ROM_CE_N;
 wire        DLH_ROM_OE_N;
 wire        DLH_ROM_WORD;
@@ -374,6 +376,7 @@ DSP_LHRomMap #(.USE_DSPn(USE_DSPn)) DSP_LHRomMap
 	.irq_n(DLH_IRQ_N),
 
 	.rom_addr(DLH_ROM_ADDR),
+	.rom_addr_early(DLH_ROM_ADDR_EARLY),
 	.rom_q(ROM_Q),
 	.rom_ce_n(DLH_ROM_CE_N),
 	.rom_oe_n(DLH_ROM_OE_N),
@@ -403,6 +406,7 @@ end else begin
 	assign DLH_DO = 0;
 	assign DLH_IRQ_N = 1;
 	assign DLH_ROM_ADDR = 0;
+	assign DLH_ROM_ADDR_EARLY = 0;
 	assign DLH_ROM_CE_N = 1;
 	assign DLH_ROM_OE_N = 1;
 	assign DLH_BSRAM_ADDR = 0;
@@ -996,6 +1000,7 @@ assign SS_AVAIL = ~|{ROM_TYPE[7:4]} | MAP_ACTIVE[3] | (ROM_TYPE[7:6] == 2'b10) |
 assign TURBO_ALLOW = ~(MAP_ACTIVE[3] | MAP_ACTIVE[1] | SS_BUSY);
 
 always @(*) begin
+	ROM_ADDR_EARLY = 0;
 	case (MAP_ACTIVE)
 	'b0000001:
 		begin
@@ -1121,6 +1126,7 @@ always @(*) begin
 			DI         = DLH_DO;
 			IRQ_N      = DLH_IRQ_N;
 			ROM_ADDR   = DLH_ROM_ADDR;
+			ROM_ADDR_EARLY = DLH_ROM_ADDR_EARLY;
 			ROM_D      = 7'h00;
 			ROM_CE_N   = DLH_ROM_CE_N;
 			ROM_OE_N   = DLH_ROM_OE_N;
