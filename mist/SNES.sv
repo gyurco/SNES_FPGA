@@ -230,12 +230,12 @@ always @(posedge clk_sys) begin
 end
 
 reg RESET_N = 0;
-reg RFSH = 0;
+reg RESET_REFRESH = 0;
 always @(posedge clk_sys) begin
 	reg [1:0] div;
 
 	div <= div + 1'd1;
-	RFSH <= !div;
+	RESET_REFRESH <= !div;
 
 	if (div == 2) RESET_N <= ~reset;
 end
@@ -373,8 +373,8 @@ data_io #(.ROM_DIRECT_UPLOAD(DIRECT_UPLOAD), .DOUT_16(1'b1)) data_io
 
 ////////////////////////////  SDRAM  ///////////////////////////////////
 wire [23:0] ROM_ADDR;
+wire [23:0] ROM_ADDR_EARLY;
 wire [24:0] ioctl_addr_adj = ioctl_addr - ioctl_filesize[9:0]; // adjust for 512 byte SMC header
-wire [23:0] rom_addr_rw = cart_download ? ioctl_addr_adj[23:0] : ROM_ADDR[23:0];
 reg  [23:1] rom_addr_sd;
 wire        ROM_CE_N;
 wire        ROM_OE_N;
@@ -382,8 +382,11 @@ wire        ROM_WE_N;
 wire        ROM_WORD;
 wire [15:0] ROM_D;
 wire [15:0] ROM_Q;
-`ifndef USE_SIMPLE_SDRAM
-assign      ROM_Q = (ROM_WORD || ~ROM_ADDR[0]) ? cpu_port0 : { cpu_port0[7:0], cpu_port0[15:8] };
+`ifdef USE_SIMPLE_SDRAM
+wire [23:0] rom_addr_rw = cart_download ? ioctl_addr_adj[23:0] : ROM_ADDR[23:0];
+`else
+assign      ROM_Q = (ROM_WORD || ~ROM_ADDR_EARLY[0]) ? cpu_port0 : { cpu_port0[7:0], cpu_port0[15:8] };
+wire [23:0] rom_addr_rw = cart_download ? ioctl_addr_adj[23:0] : ROM_ADDR_EARLY[23:0];
 `endif
 
 wire [15:0] cpu_port0;
@@ -755,7 +758,7 @@ sdram sdram2
 	.dout1(WRAM_Q),
 	.rd1(clearing_ram ? 1'b0 : ~WRAM_CE_N & ~WRAM_OE_N & READ_PULSE),
 	.wr1(clearing_ram ? mem_fill_we : ~WRAM_CE_N & ~WRAM_WE_N & SNES_SYSCLKF_CE),
-	.rfs1(clearing_ram ? 1'b0 : SNES_REFRESH),
+	.rfs1(clearing_ram ? 1'b0 : !RESET_N ? RESET_REFRESH : SNES_REFRESH),
 	.word1(0)
 );
 
@@ -852,7 +855,7 @@ wire [16:0] io_addr = ioctl_addr >= 17'h00100 && ioctl_addr < 17'h10100 ? ioctl_
                       ioctl_addr >= 17'h10100 ? {1'b1, ioctl_addr[7:0]} :
                       ioctl_addr[16:0];
 
-main #(.USE_DSPn(1'b1), .USE_CX4(EXTRA_CHIPS_2), .USE_SDD1(EXTRA_CHIPS_1), .USE_SA1(EXTRA_CHIPS_1), .USE_GSU(EXTRA_CHIPS_1), .USE_DLH(1'b1), .USE_SPC7110(EXTRA_CHIPS_2), .USE_BSX(1'b0), .USE_SS(1'b0), .HAVE_MLAB("FALSE")) main
+main #(.USE_DSPn(1'b1), .USE_CX4(EXTRA_CHIPS_2), .USE_SDD1(EXTRA_CHIPS_1), .USE_SA1(EXTRA_CHIPS_1), .USE_GSU(EXTRA_CHIPS_1), .USE_DLH(1'b1), .USE_SPC7110(EXTRA_CHIPS_2), .USE_BSX(1'b0), .USE_SUFAMI(1'b0), .USE_SS(1'b0), .HAVE_MLAB("FALSE")) main
 (
 	.RESET_N(RESET_N),
 
@@ -865,6 +868,7 @@ main #(.USE_DSPn(1'b1), .USE_CX4(EXTRA_CHIPS_2), .USE_SDD1(EXTRA_CHIPS_1), .USE_
 	.RAM_MASK(ram_mask),
 
 	.ROM_ADDR(ROM_ADDR),
+	.ROM_ADDR_EARLY(ROM_ADDR_EARLY),
 	.ROM_D(ROM_D),
 	.ROM_Q(ROM_Q),
 	.ROM_CE_N(ROM_CE_N),
