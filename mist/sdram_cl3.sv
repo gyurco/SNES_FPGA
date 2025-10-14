@@ -229,15 +229,6 @@ reg        refresh;
 reg [10:0] refresh_cnt;
 reg        need_refresh = 1'b0;
 
-always @(posedge clk) begin
-
-	if (refresh_cnt == 0)
-		need_refresh <= 0;
-	else if (refresh_cnt == RFRSH_CYCLES)
-		need_refresh <= 1;
-
-end
-
 // ROM: bank 0,1
 // WRAM, BSRAM: bank 1
 always @(*) begin
@@ -339,6 +330,7 @@ always @(posedge clk) begin
 	if(init) begin
 		refresh <= 1'b0;
 		refresh_cnt <= 0;
+		need_refresh <= 1'b0;
 
 		// initialization takes place at the end of the reset phase
 		if(t == STATE_RAS0) begin
@@ -366,6 +358,7 @@ always @(posedge clk) begin
 	begin
 
 		refresh_cnt <= refresh_cnt + 1'd1;
+		if (refresh_cnt == RFRSH_CYCLES)	need_refresh <= 1'b1;
 
 		// RAS phase
 		// bank 0,1 - ROM, WRAM
@@ -406,7 +399,8 @@ always @(posedge clk) begin
 			if (next_port[2] != PORT_NONE) sd_cmd <= CMD_ACTIVE;
 			else if (!we_latch[0] && !oe_latch[0] && !we_latch[1] && !oe_latch[1] && need_refresh) begin
 				refresh <= 1'b1;
-				refresh_cnt <= 0;
+				refresh_cnt <= refresh_cnt - RFRSH_CYCLES;
+				need_refresh <= 1'b0;
 				sd_cmd <= CMD_AUTO_REFRESH;
 			end
 		end
